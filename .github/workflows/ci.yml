@@ -24,3 +24,20 @@ jobs:
       - run: npm run check
       - name: CLI smoke test
         run: node src/cli.js matrix --search mcp
+      - name: SARIF smoke test
+        shell: bash
+        run: |
+          node src/cli.js check . --agent claude-code --format sarif --output "$RUNNER_TEMP/caniagent.sarif"
+          node -e "const fs=require('fs'); const s=JSON.parse(fs.readFileSync(process.argv[1])); if(s.version!=='2.1.0') process.exit(1)" "$RUNNER_TEMP/caniagent.sarif"
+
+  action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: caniagent
+        uses: ./
+        with:
+          agent: claude-code
+          upload-sarif: "false"
+      - name: Check action output
+        run: test -s "${{ steps.caniagent.outputs.sarif }}"
