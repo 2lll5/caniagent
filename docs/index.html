@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="CanIAgent — evidence-first compatibility for AI coding agents.">
+  <title>CanIAgent — coding-agent compatibility</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <a class="eyebrow" href="https://github.com/2lll5/caniagent">Open source · MIT</a>
+      <h1>Can I use this with<br><span>my coding agent?</span></h1>
+      <p class="lede">Evidence-first compatibility for Codex, Claude Code, Gemini CLI and OpenCode.</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/2lll5/caniagent">View on GitHub</a>
+        <button class="button" id="copy-command">Copy CLI command</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="controls" aria-label="Matrix filters">
+      <input id="search" type="search" placeholder="Search features…">
+      <select id="category"><option value="">All categories</option></select>
+    </section>
+
+    <section class="matrix-card">
+      <div class="matrix-head">
+        <div>
+          <h2>Compatibility matrix</h2>
+          <p id="updated"></p>
+        </div>
+        <div class="legend">✅ yes · 🟡 partial · 🧪 experimental · ❔ unknown · ❌ no</div>
+      </div>
+      <div class="table-scroll">
+        <table id="matrix">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="callout">
+      <div>
+        <strong>Switching agents?</strong>
+        <p>Scan a repo for instructions, skills and MCP config before you migrate.</p>
+      </div>
+      <code>node src/cli.js check . --agent codex</code>
+    </section>
+
+    <section class="principles">
+      <article><span>01</span><h3>Evidence, not vibes</h3><p>Each non-unknown cell should link to a probe, official doc or first-party source.</p></article>
+      <article><span>02</span><h3>Unknown ≠ no</h3><p>Fast-moving tools deserve explicit uncertainty instead of stale assumptions.</p></article>
+      <article><span>03</span><h3>Portable data</h3><p>The source of truth is plain JSON. Build your own action, extension or dashboard on top.</p></article>
+    </section>
+  </main>
+
+  <dialog id="detail">
+    <button class="close" aria-label="Close">×</button>
+    <div id="detail-content"></div>
+  </dialog>
+
+  <footer class="wrap footer">
+    <span>CanIAgent</span>
+    <a href="https://github.com/2lll5/caniagent/blob/main/METHODOLOGY.md">Methodology</a>
+    <a href="https://github.com/2lll5/caniagent/issues">Corrections</a>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

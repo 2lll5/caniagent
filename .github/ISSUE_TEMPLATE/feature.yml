@@ -1,0 +1,22 @@
+name: New compatibility feature
+description: Propose a cross-agent capability to track
+title: "[feature] "
+labels: []
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Feature name
+    validations:
+      required: true
+  - type: textarea
+    id: portable
+    attributes:
+      label: Why is this portable across agents?
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: First-party sources
+      description: Add links for at least two agents when possible.

@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+.caniagent/
+.DS_Store
+*.log

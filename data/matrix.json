@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-17",
+  "project": {
+    "name": "CanIAgent",
+    "repository": "https://github.com/2lll5/caniagent",
+    "methodology": "https://github.com/2lll5/caniagent/blob/main/METHODOLOGY.md"
+  },
+  "statuses": {
+    "yes": "Supported and documented",
+    "partial": "Supported with limitations or a different convention",
+    "experimental": "Available but explicitly experimental/preview",
+    "unknown": "Not verified yet",
+    "no": "Documented as unsupported"
+  },
+  "agents": [
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "command": "codex",
+      "install": "npm install -g @openai/codex",
+      "homepage": "https://developers.openai.com/codex/",
+      "instructions": ["AGENTS.md", "AGENTS.override.md"],
+      "configHints": [".codex/config.toml", "AGENTS.md", ".agents/skills/"]
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "command": "claude",
+      "install": "npm install -g @anthropic-ai/claude-code",
+      "homepage": "https://docs.anthropic.com/en/docs/claude-code/",
+      "instructions": ["CLAUDE.md"],
+      "configHints": ["CLAUDE.md", ".claude/", ".mcp.json"]
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "command": "gemini",
+      "install": "npm install -g @google/gemini-cli",
+      "homepage": "https://google-gemini.github.io/gemini-cli/",
+      "instructions": ["GEMINI.md"],
+      "configHints": ["GEMINI.md", ".gemini/settings.json", ".gemini/"]
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "command": "opencode",
+      "install": "See https://opencode.ai/docs/",
+      "homepage": "https://opencode.ai/docs/",
+      "instructions": ["AGENTS.md"],
+      "configHints": ["AGENTS.md", "opencode.json", "opencode.jsonc", ".opencode/"]
+    }
+  ],
+  "features": [
+    {
+      "id": "project-instructions",
+      "name": "Project instructions",
+      "category": "context",
+      "description": "Repository-scoped instruction files loaded automatically by the agent.",
+      "support": {
+        "codex": {"status":"yes","note":"Uses AGENTS.md; /init can scaffold it.","evidence":[{"type":"docs","url":"https://developers.openai.com/codex/guides/agents-md","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"Uses CLAUDE.md for shared project instructions.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/memory","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"Uses GEMINI.md with hierarchical loading.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html","checked":"2026-09-17"}]},
+        "opencode": {"status":"yes","note":"Uses AGENTS.md for persistent project guidance.","evidence":[{"type":"docs","url":"https://opencode.ai/v2/docs/instructions","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "nested-instructions",
+      "name": "Nested instruction scopes",
+      "category": "context",
+      "description": "More specific instruction files can apply below the repository root.",
+      "support": {
+        "codex": {"status":"yes","note":"Collects AGENTS.md files from project root down to the working directory.","evidence":[{"type":"source","url":"https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs","checked":"2026-09-17"}]},
+        "claude-code": {"status":"partial","note":"CLAUDE.md is project-scoped and supports imports; exact nested-loading behavior should be probe-tested.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/memory","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"Loads global, project/ancestor and sub-directory GEMINI.md context files.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html","checked":"2026-09-17"}]},
+        "opencode": {"status":"yes","note":"Loads AGENTS.md files by scope as the workspace is traversed.","evidence":[{"type":"docs","url":"https://opencode.ai/v2/docs/instructions","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "skills",
+      "name": "Agent Skills (SKILL.md)",
+      "category": "extensibility",
+      "description": "Reusable, discoverable instruction bundles stored as SKILL.md.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex has native skills and official skill documentation.","evidence":[{"type":"docs","url":"https://developers.openai.com/codex/skills","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"Claude Code supports reusable skills in its .claude ecosystem.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/skills","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"unknown","note":"Not yet verified against the current Gemini CLI release.","evidence":[]},
+        "opencode": {"status":"yes","note":"Native SKILL.md discovery, including Claude- and agent-compatible paths.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/skills","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "mcp",
+      "name": "MCP client",
+      "category": "extensibility",
+      "description": "Connect to external tools and data through Model Context Protocol servers.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex supports MCP servers and a dedicated MCP configuration flow.","evidence":[{"type":"docs","url":"https://developers.openai.com/codex/mcp","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"Claude Code exposes `claude mcp` and project-scoped .mcp.json.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/mcp","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"Gemini CLI configures MCP servers in settings.json and via `gemini mcp`.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html","checked":"2026-09-17"}]},
+        "opencode": {"status":"yes","note":"OpenCode supports MCP integrations in its configuration.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/mcp-servers/","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "lifecycle-hooks",
+      "name": "Lifecycle hooks",
+      "category": "automation",
+      "description": "Run custom handlers around agent/tool lifecycle events.",
+      "support": {
+        "codex": {"status":"yes","note":"Current Codex configuration includes lifecycle hooks.","evidence":[{"type":"source","url":"https://github.com/openai/codex/blob/main/docs/config.md","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"Claude Code exposes configurable hooks for lifecycle events.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/hooks","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"unknown","note":"Needs a current-release probe and documentation check.","evidence":[]},
+        "opencode": {"status":"yes","note":"Plugin/session APIs expose hooks that can intercept operations.","evidence":[{"type":"docs","url":"https://opencode.ai/v2/docs/build/plugins","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "non-interactive",
+      "name": "Non-interactive / headless mode",
+      "category": "automation",
+      "description": "Run the agent from scripts or CI without an interactive TUI.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex provides an exec/non-interactive workflow.","evidence":[{"type":"source","url":"https://github.com/openai/codex","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"`claude -p` prints a response and exits.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/cli-usage","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"`gemini -p` supports non-interactive execution.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/docs/cli/","checked":"2026-09-17"}]},
+        "opencode": {"status":"yes","note":"OpenCode exposes non-interactive run modes.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/cli/","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "structured-output",
+      "name": "Machine-readable output",
+      "category": "automation",
+      "description": "Emit JSON or another stable structured format for automation.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex exec supports JSON event output.","evidence":[{"type":"source","url":"https://github.com/openai/codex","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"Print mode supports text, json and stream-json.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/cli-usage","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"Supports `--output-format json`.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/","checked":"2026-09-17"}]},
+        "opencode": {"status":"unknown","note":"Needs a current-release probe for stable output guarantees.","evidence":[]}
+      }
+    },
+    {
+      "id": "session-resume",
+      "name": "Resume sessions",
+      "category": "workflow",
+      "description": "Continue a previous coding-agent session.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex persists threads/sessions and supports resume workflows.","evidence":[{"type":"source","url":"https://github.com/openai/codex","checked":"2026-09-17"}]},
+        "claude-code": {"status":"yes","note":"`--continue` and `--resume` are supported.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/cli-usage","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"partial","note":"Checkpoint/session workflows exist, but exact CLI compatibility needs a release probe.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/","checked":"2026-09-17"}]},
+        "opencode": {"status":"partial","note":"Sessions are persistent; CLI-level resume semantics need a release probe.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/","checked":"2026-09-17"}]}
+      }
+    },
+    {
+      "id": "sandbox",
+      "name": "Execution sandbox",
+      "category": "security",
+      "description": "Constrain shell/file/network actions inside a sandbox or equivalent isolation boundary.",
+      "support": {
+        "codex": {"status":"yes","note":"Codex exposes sandbox modes and approval policies.","evidence":[{"type":"docs","url":"https://developers.openai.com/codex/security","checked":"2026-09-17"}]},
+        "claude-code": {"status":"partial","note":"Strong tool permissions are available; this row tracks dedicated execution isolation and still needs deeper probing.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/settings","checked":"2026-09-17"}]},
+        "gemini-cli": {"status":"yes","note":"Gemini CLI documents sandboxed execution options.","evidence":[{"type":"docs","url":"https://google-gemini.github.io/gemini-cli/docs/get-started/deployment.html","checked":"2026-09-17"}]},
+        "opencode": {"status":"partial","note":"Granular permissions exist; dedicated sandbox semantics vary by environment.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/permissions/","checked":"2026-09-17"}]}
+      }
+    }
+  ]
+}
