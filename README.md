@@ -26,11 +26,13 @@ cd caniagent
 node src/cli.js matrix
 ```
 
-Or after npm publication:
+Run directly from GitHub without a global install:
 
 ```bash
-npx caniagent matrix
+npx github:2lll5/caniagent matrix
 ```
+
+After npm publication, the shorter `npx caniagent matrix` form will also work.
 
 ### Compare capabilities
 
@@ -47,7 +49,8 @@ node src/cli.js matrix --search sandbox
 ```bash
 node src/cli.js check . --agent codex
 node src/cli.js check . --agent claude-code
-node src/cli.js check . --agent gemini-cli --json
+node src/cli.js check . --agent gemini-cli --format json
+node src/cli.js check . --agent codex --format sarif --output caniagent.sarif
 ```
 
 The scanner recognizes common agent configuration surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `.mcp.json`, `.gemini/settings.json`, OpenCode configuration, and Codex configuration hints. It reports native conventions and migration attention points; it does **not** rewrite your repository.
@@ -69,6 +72,30 @@ The scanner recognizes common agent configuration surfaces such as `AGENTS.md`, 
 **Legend:** ✅ yes · 🟡 partial · 🧪 experimental · ❔ unknown · ❌ no
 
 This table is a human-readable snapshot. `data/matrix.json` is the source of truth and contains per-cell notes, evidence URLs and checked dates.
+
+## GitHub Action
+
+Use CanIAgent in a pull request to surface migration-attention findings as SARIF:
+
+```yaml
+name: Coding-agent compatibility
+on: [pull_request]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  caniagent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 2lll5/caniagent@main
+        with:
+          agent: codex
+```
+
+Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency.
 
 ## Data API
 

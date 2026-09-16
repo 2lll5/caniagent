@@ -1,0 +1,43 @@
+name: CanIAgent compatibility check
+description: Scan a repository for coding-agent migration compatibility and optionally upload SARIF.
+author: 2lll5
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  agent:
+    description: Target coding agent (codex, claude-code, gemini-cli, opencode)
+    required: true
+    default: codex
+  path:
+    description: Repository path to scan
+    required: false
+    default: .
+  upload-sarif:
+    description: "Upload findings to GitHub code scanning. Caller needs security-events: write."
+    required: false
+    default: "true"
+
+outputs:
+  sarif:
+    description: Path to the generated SARIF file
+    value: ${{ steps.scan.outputs.sarif }}
+
+runs:
+  using: composite
+  steps:
+    - id: scan
+      name: Scan coding-agent compatibility
+      shell: bash
+      env:
+        CANIAGENT_SARIF: ${{ runner.temp }}/caniagent.sarif
+      run: |
+        node "$GITHUB_ACTION_PATH/src/cli.js" check "${{ inputs.path }}" --agent "${{ inputs.agent }}" --format sarif --output "$CANIAGENT_SARIF"
+        echo "sarif=$CANIAGENT_SARIF" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF
+      if: ${{ inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
