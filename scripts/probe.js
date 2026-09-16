@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { loadMatrix } from "../src/core.js";
+import { redactProbeOutput } from "./probe-utils.js";
 
 const matrix = loadMatrix();
 const now = new Date().toISOString();
@@ -17,9 +18,9 @@ function run(command, args, timeout = 8000) {
     ok: result.status === 0,
     status: result.status,
     signal: result.signal,
-    stdout: (result.stdout ?? "").slice(0, 12000),
-    stderr: (result.stderr ?? "").slice(0, 12000),
-    error: result.error?.message
+    stdout: redactProbeOutput((result.stdout ?? "").slice(0, 12000)),
+    stderr: redactProbeOutput((result.stderr ?? "").slice(0, 12000)),
+    error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
   };
 }
 

@@ -16,7 +16,7 @@
     "check": "npm run validate && npm test && npm run lint",
     "validate": "node scripts/validate-data.js",
     "test": "node --test",
-    "lint": "node --check src/cli.js && node --check src/core.js && node --check src/detect.js && node --check src/format.js && node --check src/sarif.js && node --check scripts/probe.js",
+    "lint": "node --check src/cli.js && node --check src/core.js && node --check src/detect.js && node --check src/format.js && node --check src/sarif.js && node --check scripts/probe.js && node --check scripts/probe-utils.js",
     "site:data": "node scripts/generate-site-data.js",
     "probe": "node scripts/probe.js"
   },
