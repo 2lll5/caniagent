@@ -1,0 +1,24 @@
+name: Data consistency
+
+on:
+  pull_request:
+    paths:
+      - "data/**"
+      - "docs/matrix.json"
+      - "scripts/generate-site-data.js"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generated-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run site:data
+      - name: Ensure generated site data is committed
+        run: git diff --exit-code -- docs/matrix.json

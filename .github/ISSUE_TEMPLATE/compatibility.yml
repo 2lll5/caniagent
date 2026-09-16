@@ -1,0 +1,43 @@
+name: Compatibility correction
+description: Report a wrong or stale matrix cell
+title: "[compat] "
+labels: []
+body:
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - OpenAI Codex
+        - Claude Code
+        - Gemini CLI
+        - OpenCode
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Agent version
+      placeholder: "e.g. 0.x.y"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "Windows 11 / macOS / Ubuntu"
+  - type: textarea
+    id: claim
+    attributes:
+      label: What is wrong?
+      description: Include the feature row and the status you think should change.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or minimal reproduction
+      description: Prefer official docs, first-party source, or a behavior probe.
+    validations:
+      required: true
