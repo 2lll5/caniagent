@@ -19,6 +19,19 @@ test("scanner finds common coding-agent files", () => {
   assert.ok(found.some((item) => item.path === ".mcp.json"));
 });
 
+test("scanner rejects a missing root instead of reporting an empty repository", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-missing-"));
+  const missing = path.join(dir, "does-not-exist");
+  assert.throws(() => scanRepository(missing), /Scan path does not exist:/);
+});
+
+test("scanner rejects a file root", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-file-"));
+  const file = path.join(dir, "AGENTS.md");
+  fs.writeFileSync(file, "# agent rules");
+  assert.throws(() => scanRepository(file), /Scan path is not a directory:/);
+});
+
 test("compatibility findings flag foreign conventions", () => {
   const matrix = loadMatrix();
   const detections = [
