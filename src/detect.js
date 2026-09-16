@@ -18,6 +18,15 @@ const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next"
 
 export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
   const resolvedRoot = path.resolve(root);
+  let rootStat;
+  try {
+    rootStat = fs.statSync(resolvedRoot);
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`Scan path does not exist: ${resolvedRoot}`);
+    throw new Error(`Cannot access scan path: ${resolvedRoot}`);
+  }
+  if (!rootStat.isDirectory()) throw new Error(`Scan path is not a directory: ${resolvedRoot}`);
+
   const found = [];
   let visited = 0;
 
