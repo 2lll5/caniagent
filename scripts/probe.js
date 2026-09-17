@@ -30,7 +30,8 @@ const results = [];
 for (const agent of matrix.agents) {
   const version = run(agent.command, ["--version"]);
   const installed = version.outcome !== "not_found";
-  const help = installed && version.outcome !== "timeout" ? run(agent.command, ["--help"]) : null;
+  const interrupted = version.outcome === "timeout" || version.outcome === "signaled";
+  const help = installed && !interrupted ? run(agent.command, ["--help"]) : null;
   results.push({
     agent: agent.id,
     command: agent.command,
