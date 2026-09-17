@@ -27,6 +27,16 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        CANIAGENT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+      run: |
+        case "$CANIAGENT_UPLOAD_SARIF" in
+          true|false) ;;
+          *) echo "caniagent: upload-sarif must be 'true' or 'false'" >&2; exit 1 ;;
+        esac
+
     - id: scan
       name: Scan coding-agent compatibility
       shell: bash
