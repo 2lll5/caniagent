@@ -32,8 +32,10 @@ runs:
       shell: bash
       env:
         CANIAGENT_SARIF: ${{ runner.temp }}/caniagent.sarif
+        CANIAGENT_PATH: ${{ inputs.path }}
+        CANIAGENT_AGENT: ${{ inputs.agent }}
       run: |
-        node "$GITHUB_ACTION_PATH/src/cli.js" check "${{ inputs.path }}" --agent "${{ inputs.agent }}" --format sarif --output "$CANIAGENT_SARIF"
+        node "$GITHUB_ACTION_PATH/src/cli.js" check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF"
         echo "sarif=$CANIAGENT_SARIF" >> "$GITHUB_OUTPUT"
 
     - name: Upload SARIF
