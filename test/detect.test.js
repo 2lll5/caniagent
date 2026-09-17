@@ -32,6 +32,17 @@ test("scanner rejects a file root", () => {
   assert.throws(() => scanRepository(file), /Scan path is not a directory:/);
 });
 
+test("scanner fails instead of returning partial results at the file limit", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-limit-"));
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# agent rules");
+  fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# claude rules");
+
+  assert.throws(
+    () => scanRepository(dir, { maxFiles: 1 }),
+    /Scan exceeded file limit \(1\) before the repository was fully inspected/
+  );
+});
+
 test("compatibility findings flag foreign conventions", () => {
   const matrix = loadMatrix();
   const detections = [
