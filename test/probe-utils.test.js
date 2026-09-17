@@ -40,9 +40,10 @@ test("leaves ordinary diagnostic output intact", () => {
   assert.equal(redactProbeOutput(input, { home: "" }), input);
 });
 
-test("classifies probe execution outcomes without treating every spawn error as missing", () => {
+test("classifies probe execution outcomes without conflating process failures", () => {
   assert.equal(classifyProbeExecution({ status: 0 }), "success");
   assert.equal(classifyProbeExecution({ status: 2 }), "nonzero_exit");
+  assert.equal(classifyProbeExecution({ status: null, signal: "SIGTERM" }), "signaled");
   assert.equal(classifyProbeExecution({ status: null, error: { code: "ENOENT" } }), "not_found");
   assert.equal(classifyProbeExecution({ status: null, error: { code: "ETIMEDOUT" } }), "timeout");
   assert.equal(classifyProbeExecution({ status: null, error: { code: "EACCES" } }), "spawn_error");
