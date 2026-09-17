@@ -30,8 +30,11 @@ export function redactProbeOutput(value, { home = os.homedir() } = {}) {
 }
 
 export function classifyProbeExecution(result) {
-  if (!result?.error) return result?.status === 0 ? "success" : "nonzero_exit";
-  if (result.error.code === "ENOENT") return "not_found";
-  if (result.error.code === "ETIMEDOUT") return "timeout";
-  return "spawn_error";
+  if (result?.error) {
+    if (result.error.code === "ENOENT") return "not_found";
+    if (result.error.code === "ETIMEDOUT") return "timeout";
+    return "spawn_error";
+  }
+  if (result?.signal) return "signaled";
+  return result?.status === 0 ? "success" : "nonzero_exit";
 }
