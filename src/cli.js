@@ -46,6 +46,12 @@ function has(args, name) {
   return args.includes(name);
 }
 
+function validateOptions(args, allowed) {
+  const allowedSet = new Set(allowed);
+  const unknown = args.find((arg) => arg.startsWith("-") && !allowedSet.has(arg));
+  if (unknown) throw new Error(`Unknown option: ${unknown}`);
+}
+
 function positionalArgs(args, optionsWithValues = []) {
   const options = new Set(optionsWithValues);
   const result = [];
@@ -88,6 +94,7 @@ const [command, ...rest] = args;
 
 try {
   if (command === "matrix") {
+    validateOptions(rest, ["--category", "--search", "--json"]);
     const rows = featureRows(matrix, {
       category: valueOf(rest, "--category"),
       query: valueOf(rest, "--search")
@@ -99,6 +106,7 @@ try {
       console.log("\nLegend: ✅ yes  🟡 partial  🧪 experimental  ❔ unknown  ❌ no");
     }
   } else if (command === "feature") {
+    validateOptions(rest, ["--json"]);
     const id = positionalArgs(rest)[0];
     const feature = getFeature(matrix, id);
     if (!feature) throw new Error(`Unknown feature: ${id ?? "(missing)"}`);
@@ -115,6 +123,7 @@ try {
       }
     }
   } else if (command === "agent") {
+    validateOptions(rest, ["--json"]);
     const id = positionalArgs(rest)[0];
     const agent = getAgent(matrix, id);
     if (!agent) throw new Error(`Unknown agent: ${id ?? "(missing)"}`);
@@ -132,6 +141,7 @@ try {
       for (const row of support) console.log(`${icon(row.status)} ${row.name}: ${row.status}`);
     }
   } else if (command === "check") {
+    validateOptions(rest, ["--agent", "--format", "--output", "--json"]);
     const target = valueOf(rest, "--agent");
     if (!target) throw new Error("check requires --agent <agent-id>");
     const agent = getAgent(matrix, target);
@@ -154,8 +164,10 @@ try {
       emit(renderFindings(agent.name, findings) + "\n", outputPath);
     }
   } else if (command === "categories") {
+    validateOptions(rest, []);
     for (const category of listCategories(matrix)) console.log(category);
   } else if (command === "agents") {
+    validateOptions(rest, []);
     for (const agent of matrix.agents) console.log(`${agent.id}\t${agent.name}`);
   } else {
     throw new Error(`Unknown command: ${command}`);
