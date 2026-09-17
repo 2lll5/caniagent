@@ -5,7 +5,7 @@ import fs from "node:fs";
 const action = fs.readFileSync(new URL("../action.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 
 test("passes Action inputs through environment variables instead of shell interpolation", () => {
-  const runBlock = action.match(/      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
+  const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
 
   assert.match(action, /CANIAGENT_PATH: \$\{\{ inputs\.path \}\}/);
   assert.match(action, /CANIAGENT_AGENT: \$\{\{ inputs\.agent \}\}/);
