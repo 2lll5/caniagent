@@ -23,6 +23,20 @@ test("rejects an option with no following value", () => {
   assert.match(result.stderr, /caniagent: --output requires a value/);
 });
 
+test("rejects unknown options instead of silently ignoring typos", () => {
+  const result = run(["check", ".", "--agent", "codex", "--formt", "json"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: Unknown option: --formt/);
+});
+
+test("rejects options for commands that do not accept any", () => {
+  const result = run(["agents", "--json"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: Unknown option: --json/);
+});
+
 test("still accepts valid valued options", () => {
   const result = run(["matrix", "--search", "sandbox", "--json"]);
 
