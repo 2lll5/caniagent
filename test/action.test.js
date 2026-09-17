@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const action = fs.readFileSync(new URL("../action.yml", import.meta.url), "utf8");
+const action = fs.readFileSync(new URL("../action.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 
 test("passes Action inputs through environment variables instead of shell interpolation", () => {
   const runBlock = action.match(/      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
