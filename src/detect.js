@@ -29,9 +29,14 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
 
   const found = [];
   let visited = 0;
+  let fileLimitExceeded = false;
 
   function walk(dir, depth) {
-    if (depth > maxDepth || visited >= maxFiles) return;
+    if (depth > maxDepth) return;
+    if (visited >= maxFiles) {
+      fileLimitExceeded = true;
+      return;
+    }
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -40,7 +45,11 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
     }
 
     for (const entry of entries) {
-      if (visited++ >= maxFiles) break;
+      if (visited >= maxFiles) {
+        fileLimitExceeded = true;
+        break;
+      }
+      visited += 1;
       if (entry.isDirectory() && SKIP.has(entry.name)) continue;
       const full = path.join(dir, entry.name);
       const rel = path.relative(resolvedRoot, full).replaceAll(path.sep, "/");
@@ -60,6 +69,9 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
   }
 
   walk(resolvedRoot, 0);
+  if (fileLimitExceeded) {
+    throw new Error(`Scan exceeded file limit (${maxFiles}) before the repository was fully inspected`);
+  }
   return found.sort((a, b) => a.path.localeCompare(b.path));
 }
 
