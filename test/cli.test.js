@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const cli = new URL("../src/cli.js", import.meta.url);
+const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
 
 function run(args) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
