@@ -12,3 +12,11 @@ test("passes Action inputs through environment variables instead of shell interp
   assert.doesNotMatch(runBlock, /\$\{\{\s*inputs\./);
   assert.match(runBlock, /check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT"/);
 });
+
+test("validates upload-sarif instead of silently treating typos as false", () => {
+  const validateBlock = action.match(/    - name: Validate inputs\n([\s\S]*?)(?=\n    - id: scan)/)?.[1] ?? "";
+
+  assert.match(validateBlock, /CANIAGENT_UPLOAD_SARIF: \$\{\{ inputs\.upload-sarif \}\}/);
+  assert.match(validateBlock, /true\|false\)/);
+  assert.match(validateBlock, /upload-sarif must be 'true' or 'false'/);
+});
