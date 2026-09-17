@@ -28,3 +28,10 @@ export function redactProbeOutput(value, { home = os.homedir() } = {}) {
 
   return output;
 }
+
+export function classifyProbeExecution(result) {
+  if (!result?.error) return result?.status === 0 ? "success" : "nonzero_exit";
+  if (result.error.code === "ENOENT") return "not_found";
+  if (result.error.code === "ETIMEDOUT") return "timeout";
+  return "spawn_error";
+}
