@@ -1,3 +1,6 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 const LEVEL = {
   no: "error",
   unknown: "note",
@@ -8,6 +11,12 @@ const LEVEL = {
 
 function uriFor(relativePath) {
   return encodeURI(String(relativePath).replaceAll("\\", "/"));
+}
+
+function rootUri(root) {
+  const resolved = path.resolve(root);
+  const withSeparator = resolved.endsWith(path.sep) ? resolved : `${resolved}${path.sep}`;
+  return pathToFileURL(withSeparator).href;
 }
 
 function ruleId(featureId, kind) {
@@ -97,7 +106,7 @@ export function buildSarif({ matrix, targetAgent, root, findings }) {
         },
         automationDetails: { id: `caniagent/${targetAgent.id}` },
         originalUriBaseIds: {
-          "%SRCROOT%": { uri: `file://${String(root).replaceAll("\\", "/").replace(/\/$/, "")}/` }
+          "%SRCROOT%": { uri: rootUri(root) }
         },
         results
       }
