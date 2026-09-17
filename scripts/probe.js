@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { loadMatrix } from "../src/core.js";
-import { redactProbeOutput } from "./probe-utils.js";
+import { classifyProbeExecution, redactProbeOutput } from "./probe-utils.js";
 
 const matrix = loadMatrix();
 const now = new Date().toISOString();
@@ -13,9 +13,11 @@ function run(command, args, timeout = 8000) {
     timeout,
     shell: process.platform === "win32"
   });
+  const outcome = classifyProbeExecution(result);
   return {
     command: [command, ...args].join(" "),
-    ok: result.status === 0,
+    ok: outcome === "success",
+    outcome,
     status: result.status,
     signal: result.signal,
     stdout: redactProbeOutput((result.stdout ?? "").slice(0, 12000)),
@@ -27,12 +29,13 @@ function run(command, args, timeout = 8000) {
 const results = [];
 for (const agent of matrix.agents) {
   const version = run(agent.command, ["--version"]);
-  const help = version.error ? null : run(agent.command, ["--help"]);
+  const installed = version.outcome !== "not_found";
+  const help = installed && version.outcome !== "timeout" ? run(agent.command, ["--help"]) : null;
   results.push({
     agent: agent.id,
     command: agent.command,
     observedAt: now,
-    installed: !version.error,
+    installed,
     version,
     help
   });
