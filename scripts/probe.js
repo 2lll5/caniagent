@@ -15,7 +15,7 @@ function run(command, args, timeout = 8000) {
   });
   const outcome = classifyProbeExecution(result);
   return {
-    command: [command, ...args].join(" "),
+    command: redactProbeOutput([command, ...args].join(" ")),
     ok: outcome === "success",
     outcome,
     status: result.status,
