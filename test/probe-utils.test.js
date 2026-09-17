@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { redactProbeOutput } from "../scripts/probe-utils.js";
+import { classifyProbeExecution, redactProbeOutput } from "../scripts/probe-utils.js";
 
 test("redacts home directory paths", () => {
   const home = "/Users/example";
@@ -29,4 +29,12 @@ test("redacts common credential shapes while preserving labels", () => {
 test("leaves ordinary diagnostic output intact", () => {
   const input = "codex-cli 1.2.3\nUsage: codex [options]";
   assert.equal(redactProbeOutput(input, { home: "" }), input);
+});
+
+test("classifies probe execution outcomes without treating every spawn error as missing", () => {
+  assert.equal(classifyProbeExecution({ status: 0 }), "success");
+  assert.equal(classifyProbeExecution({ status: 2 }), "nonzero_exit");
+  assert.equal(classifyProbeExecution({ status: null, error: { code: "ENOENT" } }), "not_found");
+  assert.equal(classifyProbeExecution({ status: null, error: { code: "ETIMEDOUT" } }), "timeout");
+  assert.equal(classifyProbeExecution({ status: null, error: { code: "EACCES" } }), "spawn_error");
 });
