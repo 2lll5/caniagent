@@ -26,6 +26,15 @@ test("redacts common credential shapes while preserving labels", () => {
   assert.match(output, /token: <REDACTED>/);
 });
 
+test("redacts credentials embedded in command-shaped output", () => {
+  const input = "agent run --api-key=super-secret-value --token: top-secret-value";
+  const output = redactProbeOutput(input, { home: "" });
+  assert.equal(output.includes("super-secret-value"), false);
+  assert.equal(output.includes("top-secret-value"), false);
+  assert.match(output, /--api-key=<REDACTED>/);
+  assert.match(output, /--token: <REDACTED>/);
+});
+
 test("leaves ordinary diagnostic output intact", () => {
   const input = "codex-cli 1.2.3\nUsage: codex [options]";
   assert.equal(redactProbeOutput(input, { home: "" }), input);
