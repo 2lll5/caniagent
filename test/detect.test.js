@@ -54,6 +54,29 @@ test("scanner fails instead of returning partial results at the depth limit", ()
   );
 });
 
+test("scanner fails instead of returning partial results when a directory cannot be read", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-unreadable-"));
+  const blocked = path.join(dir, "blocked");
+  fs.mkdirSync(blocked);
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# agent rules");
+
+  const originalReaddirSync = fs.readdirSync;
+  fs.readdirSync = (target, options) => {
+    if (path.resolve(target) === path.resolve(blocked)) {
+      const error = new Error("permission denied");
+      error.code = "EACCES";
+      throw error;
+    }
+    return originalReaddirSync(target, options);
+  };
+
+  try {
+    assert.throws(() => scanRepository(dir), /Cannot read scan directory: blocked \(EACCES\)/);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+  }
+});
+
 test("compatibility findings flag foreign conventions", () => {
   const matrix = loadMatrix();
   const detections = [
