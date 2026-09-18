@@ -27,6 +27,22 @@ test("SARIF emits migration attention for foreign conventions", () => {
   assert.equal(sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri, "CLAUDE.md");
 });
 
+test("SARIF artifact URIs escape reserved path characters", () => {
+  const detections = [
+    { path: "nested/config #1?.md", feature: "project-instructions", native: ["claude-code"], label: "fixture" }
+  ];
+  const findings = compatibilityFindings(matrix, detections, "codex");
+  const sarif = buildSarif({
+    matrix,
+    targetAgent: getAgent(matrix, "codex"),
+    root: "/tmp/repo",
+    findings
+  });
+  const uri = sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri;
+
+  assert.equal(uri, "nested/config%20%231%3F.md");
+});
+
 test("SARIF source root is a portable absolute file URI", () => {
   const root = path.resolve("test", "fixtures", "repo with spaces");
   const sarif = buildSarif({
