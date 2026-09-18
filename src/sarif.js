@@ -11,7 +11,11 @@ const LEVEL = {
 };
 
 function uriFor(relativePath) {
-  return encodeURI(String(relativePath).replaceAll("\\", "/"));
+  return String(relativePath)
+    .replaceAll("\\", "/")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 function rootUri(root) {
