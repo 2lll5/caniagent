@@ -36,3 +36,21 @@ export function featureRows(matrix, { category, query } = {}) {
   }
   return rows;
 }
+
+export function statusScore(status) {
+  return { yes: 4, partial: 3, experimental: 2, unknown: 1, no: 0 }[status] ?? -1;
+}
+
+export function compareAgents(matrix, agentIds) {
+  const agents = agentIds.map((id) => getAgent(matrix, id)).filter(Boolean);
+  return matrix.features.map((feature) => ({
+    id: feature.id,
+    name: feature.name,
+    category: feature.category,
+    cells: agents.map((agent) => ({
+      agent: agent.id,
+      status: feature.support[agent.id]?.status ?? "unknown",
+      note: feature.support[agent.id]?.note ?? "No data"
+    }))
+  }));
+}
