@@ -1,5 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { packageVersion } from "./core.js";
 
 const LEVEL = {
   no: "error",
@@ -100,7 +101,7 @@ export function buildSarif({ matrix, targetAgent, root, findings }) {
           driver: {
             name: "CanIAgent",
             informationUri: matrix.project?.repository ?? "https://github.com/2lll5/caniagent",
-            semanticVersion: "0.2.0",
+            semanticVersion: packageVersion,
             rules: [...rules.values()]
           }
         },
