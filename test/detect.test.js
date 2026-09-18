@@ -43,6 +43,17 @@ test("scanner fails instead of returning partial results at the file limit", () 
   );
 });
 
+test("scanner fails instead of returning partial results at the depth limit", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-depth-"));
+  fs.mkdirSync(path.join(dir, "one", "two"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "one", "two", "AGENTS.md"), "# nested agent rules");
+
+  assert.throws(
+    () => scanRepository(dir, { maxDepth: 1 }),
+    /Scan exceeded depth limit \(1\) before the repository was fully inspected/
+  );
+});
+
 test("compatibility findings flag foreign conventions", () => {
   const matrix = loadMatrix();
   const detections = [
