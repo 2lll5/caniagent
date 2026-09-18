@@ -18,11 +18,15 @@ function valueOf(args, name) {
   const index = args.indexOf(name);
   if (index < 0) return undefined;
   const value = args[index + 1];
-  if (value === undefined || value.startsWith("-")) throw new Error(`${name} requires a value`);
+  if (value === undefined || value.startsWith("-")) {
+    throw new Error(`${name} requires a value`);
+  }
   return value;
 }
 
-function has(args, name) { return args.includes(name); }
+function has(args, name) {
+  return args.includes(name);
+}
 
 function validateOptions(args, allowed) {
   const allowedSet = new Set(allowed);
@@ -35,7 +39,10 @@ function positionalArgs(args, optionsWithValues = []) {
   const result = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (options.has(arg)) { i += 1; continue; }
+    if (options.has(arg)) {
+      i += 1;
+      continue;
+    }
     if (!arg.startsWith("-")) result.push(arg);
   }
   return result;
@@ -47,7 +54,9 @@ function validatePositionals(args, optionsWithValues = [], max = 0) {
   return positionals;
 }
 
-function stringify(value) { return JSON.stringify(value, null, 2) + "\n"; }
+function stringify(value) {
+  return JSON.stringify(value, null, 2) + "\n";
+}
 
 function emit(text, outputPath) {
   if (outputPath) {
@@ -60,15 +69,25 @@ function emit(text, outputPath) {
 }
 
 const args = process.argv.slice(2);
-if (args.length === 0 || has(args, "--help") || has(args, "-h")) { usage(); process.exit(0); }
-if (has(args, "--version") || has(args, "-v")) { console.log(VERSION); process.exit(0); }
+if (args.length === 0 || has(args, "--help") || has(args, "-h")) {
+  usage();
+  process.exit(0);
+}
+if (has(args, "--version") || has(args, "-v")) {
+  console.log(VERSION);
+  process.exit(0);
+}
+
 const [command, ...rest] = args;
 
 try {
   if (command === "matrix") {
     validateOptions(rest, ["--category", "--search", "--json"]);
     validatePositionals(rest, ["--category", "--search"]);
-    const rows = featureRows(matrix, { category: valueOf(rest, "--category"), query: valueOf(rest, "--search") });
+    const rows = featureRows(matrix, {
+      category: valueOf(rest, "--category"),
+      query: valueOf(rest, "--search")
+    });
     if (has(rest, "--json")) emit(stringify({ updatedAt: matrix.updatedAt, agents: matrix.agents, features: rows }));
     else {
       console.log(`CanIAgent compatibility matrix · data ${matrix.updatedAt}\n`);
@@ -97,7 +116,12 @@ try {
     const id = validatePositionals(rest, [], 1)[0];
     const agent = getAgent(matrix, id);
     if (!agent) throw new Error(`Unknown agent: ${id ?? "(missing)"}`);
-    const support = matrix.features.map((feature) => ({ id: feature.id, name: feature.name, category: feature.category, ...(feature.support[id] ?? { status: "unknown", note: "No data" }) }));
+    const support = matrix.features.map((feature) => ({
+      id: feature.id,
+      name: feature.name,
+      category: feature.category,
+      ...(feature.support[id] ?? { status: "unknown", note: "No data" })
+    }));
     if (has(rest, "--json")) emit(stringify({ ...agent, support }));
     else {
       console.log(`${agent.name} (${agent.id})`);
@@ -116,10 +140,18 @@ try {
     const findings = compatibilityFindings(matrix, detections, target);
     const format = has(rest, "--json") ? "json" : (valueOf(rest, "--format") ?? "text");
     const outputPath = valueOf(rest, "--output");
-    if (!new Set(["text", "json", "sarif"]).has(format)) throw new Error(`Unsupported format: ${format}`);
-    if (format === "json") emit(stringify({ path: targetPath, target: agent, detections, findings }), outputPath);
-    else if (format === "sarif") emit(stringify(buildSarif({ matrix, targetAgent: agent, root: targetPath, findings })), outputPath);
-    else emit(renderFindings(agent.name, findings) + "\n", outputPath);
+
+    if (!new Set(["text", "json", "sarif"]).has(format)) {
+      throw new Error(`Unsupported format: ${format}`);
+    }
+
+    if (format === "json") {
+      emit(stringify({ path: targetPath, target: agent, detections, findings }), outputPath);
+    } else if (format === "sarif") {
+      emit(stringify(buildSarif({ matrix, targetAgent: agent, root: targetPath, findings })), outputPath);
+    } else {
+      emit(renderFindings(agent.name, findings) + "\n", outputPath);
+    }
   } else if (command === "categories") {
     validateOptions(rest, []);
     validatePositionals(rest);
@@ -128,7 +160,9 @@ try {
     validateOptions(rest, []);
     validatePositionals(rest);
     for (const agent of matrix.agents) console.log(`${agent.id}\t${agent.name}`);
-  } else throw new Error(`Unknown command: ${command}`);
+  } else {
+    throw new Error(`Unknown command: ${command}`);
+  }
 } catch (error) {
   console.error(`caniagent: ${error.message}`);
   process.exitCode = 1;
