@@ -44,8 +44,10 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
+    } catch (error) {
+      const rel = path.relative(resolvedRoot, dir).replaceAll(path.sep, "/") || ".";
+      const detail = error?.code ? ` (${error.code})` : "";
+      throw new Error(`Cannot read scan directory: ${rel}${detail}`);
     }
 
     for (const entry of entries) {
