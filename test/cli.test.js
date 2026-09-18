@@ -38,6 +38,13 @@ test("rejects unknown options instead of silently ignoring typos", () => {
   assert.match(result.stderr, /caniagent: Unknown option: --formt/);
 });
 
+test("rejects duplicate options instead of silently using the first value", () => {
+  const result = run(["check", ".", "--agent", "codex", "--agent", "claude-code"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: Duplicate option: --agent/);
+});
+
 test("rejects options for commands that do not accept any", () => {
   const result = run(["agents", "--json"]);
 
