@@ -131,6 +131,9 @@ try {
     }
   } else if (command === "check") {
     validateOptions(rest, ["--agent", "--format", "--output", "--json"]);
+    if (has(rest, "--json") && has(rest, "--format")) {
+      throw new Error("--json cannot be combined with --format");
+    }
     const target = valueOf(rest, "--agent");
     if (!target) throw new Error("check requires --agent <agent-id>");
     const agent = getAgent(matrix, target);
