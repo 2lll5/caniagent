@@ -59,6 +59,13 @@ test("rejects positional arguments for commands that accept none", () => {
   assert.match(result.stderr, /caniagent: Unexpected argument: extra/);
 });
 
+test("rejects conflicting check output format flags", () => {
+  const result = run(["check", ".", "--agent", "codex", "--json", "--format", "sarif"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: --json cannot be combined with --format/);
+});
+
 test("still accepts valid valued options", () => {
   const result = run(["matrix", "--search", "sandbox", "--json"]);
 
