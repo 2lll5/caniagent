@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const action = fs.readFileSync(new URL("../action.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+const ci = fs.readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 
 test("passes Action inputs through environment variables instead of shell interpolation", () => {
   const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
@@ -21,11 +22,18 @@ test("validates upload-sarif instead of silently treating typos as false", () =>
   assert.match(validateBlock, /upload-sarif must be 'true' or 'false'/);
 });
 
-test("pins third-party Action dependencies to immutable commits", () => {
-  const uses = [...action.matchAll(/^\s*uses:\s*(\S+)/gm)].map((match) => match[1]);
+function assertImmutableActionPins(source, label) {
+  const uses = [...source.matchAll(/^\s*uses:\s*(\S+)/gm)]
+    .map((match) => match[1])
+    .filter((dependency) => !dependency.startsWith("./"));
 
-  assert.ok(uses.length > 0, "expected at least one Action dependency");
+  assert.ok(uses.length > 0, `expected at least one external Action dependency in ${label}`);
   for (const dependency of uses) {
-    assert.match(dependency, /@[0-9a-f]{40}$/i, `${dependency} must use a full commit SHA`);
+    assert.match(dependency, /@[0-9a-f]{40}$/i, `${dependency} in ${label} must use a full commit SHA`);
   }
+}
+
+test("pins third-party Action dependencies to immutable commits", () => {
+  assertImmutableActionPins(action, "action.yml");
+  assertImmutableActionPins(ci, ".github/workflows/ci.yml");
 });
