@@ -30,8 +30,13 @@ function has(args, name) {
 
 function validateOptions(args, allowed) {
   const allowedSet = new Set(allowed);
-  const unknown = args.find((arg) => arg.startsWith("-") && !allowedSet.has(arg));
-  if (unknown) throw new Error(`Unknown option: ${unknown}`);
+  const seen = new Set();
+  for (const arg of args) {
+    if (!arg.startsWith("-")) continue;
+    if (!allowedSet.has(arg)) throw new Error(`Unknown option: ${arg}`);
+    if (seen.has(arg)) throw new Error(`Duplicate option: ${arg}`);
+    seen.add(arg);
+  }
 }
 
 function positionalArgs(args, optionsWithValues = []) {
