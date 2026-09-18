@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const defaultMatrixPath = path.resolve(here, "../data/matrix.json");
+const packagePath = path.resolve(here, "../package.json");
+export const packageVersion = JSON.parse(fs.readFileSync(packagePath, "utf8")).version;
 
 export function loadMatrix(file = defaultMatrixPath) {
   return JSON.parse(fs.readFileSync(file, "utf8"));

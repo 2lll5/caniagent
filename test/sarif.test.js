@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { loadMatrix, getAgent } from "../src/core.js";
+import { loadMatrix, getAgent, packageVersion } from "../src/core.js";
 import { compatibilityFindings } from "../src/detect.js";
 import { buildSarif } from "../src/sarif.js";
 
@@ -20,6 +20,7 @@ test("SARIF emits migration attention for foreign conventions", () => {
   });
 
   assert.equal(sarif.version, "2.1.0");
+  assert.equal(sarif.runs[0].tool.driver.semanticVersion, packageVersion);
   assert.equal(sarif.runs.length, 1);
   assert.equal(sarif.runs[0].results.length, 1);
   assert.equal(sarif.runs[0].results[0].ruleId, "caniagent/project-instructions/foreign-convention");
