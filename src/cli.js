@@ -2,34 +2,16 @@
 import fs from "node:fs";
 import process from "node:process";
 import path from "node:path";
-import { loadMatrix, getAgent, getFeature, featureRows, listCategories } from "./core.js";
+import { loadMatrix, getAgent, getFeature, featureRows, listCategories, packageVersion } from "./core.js";
 import { scanRepository, compatibilityFindings } from "./detect.js";
 import { renderMatrix, renderFindings, icon } from "./format.js";
 import { buildSarif } from "./sarif.js";
 
-const VERSION = "0.2.0";
+const VERSION = packageVersion;
 const matrix = loadMatrix();
 
 function usage() {
-  console.log(`CanIAgent ${VERSION}
-
-Usage:
-  caniagent matrix [--category <name>] [--search <text>] [--json]
-  caniagent feature <feature-id> [--json]
-  caniagent agent <agent-id> [--json]
-  caniagent check [path] --agent <agent-id> [--format text|json|sarif] [--output <file>]
-  caniagent categories
-  caniagent agents
-  caniagent --version
-  caniagent --help
-
-Examples:
-  caniagent matrix
-  caniagent feature mcp
-  caniagent check . --agent codex
-  caniagent check . --agent claude-code --format json
-  caniagent check . --agent codex --format sarif --output caniagent.sarif
-`);
+  console.log(`CanIAgent ${VERSION}\n\nUsage:\n  caniagent matrix [--category <name>] [--search <text>] [--json]\n  caniagent feature <feature-id> [--json]\n  caniagent agent <agent-id> [--json]\n  caniagent check [path] --agent <agent-id> [--format text|json|sarif] [--output <file>]\n  caniagent categories\n  caniagent agents\n  caniagent --version\n  caniagent --help\n\nExamples:\n  caniagent matrix\n  caniagent feature mcp\n  caniagent check . --agent codex\n  caniagent check . --agent claude-code --format json\n  caniagent check . --agent codex --format sarif --output caniagent.sarif\n`);
 }
 
 function valueOf(args, name) {
