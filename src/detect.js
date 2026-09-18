@@ -30,9 +30,13 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
   const found = [];
   let visited = 0;
   let fileLimitExceeded = false;
+  let depthLimitExceeded = false;
 
   function walk(dir, depth) {
-    if (depth > maxDepth) return;
+    if (depth > maxDepth) {
+      depthLimitExceeded = true;
+      return;
+    }
     if (visited >= maxFiles) {
       fileLimitExceeded = true;
       return;
@@ -71,6 +75,9 @@ export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
   walk(resolvedRoot, 0);
   if (fileLimitExceeded) {
     throw new Error(`Scan exceeded file limit (${maxFiles}) before the repository was fully inspected`);
+  }
+  if (depthLimitExceeded) {
+    throw new Error(`Scan exceeded depth limit (${maxDepth}) before the repository was fully inspected`);
   }
   return found.sort((a, b) => a.path.localeCompare(b.path));
 }
