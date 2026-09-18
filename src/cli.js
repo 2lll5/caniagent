@@ -48,6 +48,12 @@ function positionalArgs(args, optionsWithValues = []) {
   return result;
 }
 
+function validatePositionals(args, optionsWithValues = [], max = 0) {
+  const positionals = positionalArgs(args, optionsWithValues);
+  if (positionals.length > max) throw new Error(`Unexpected argument: ${positionals[max]}`);
+  return positionals;
+}
+
 function stringify(value) {
   return JSON.stringify(value, null, 2) + "\n";
 }
@@ -77,6 +83,7 @@ const [command, ...rest] = args;
 try {
   if (command === "matrix") {
     validateOptions(rest, ["--category", "--search", "--json"]);
+    validatePositionals(rest, ["--category", "--search"]);
     const rows = featureRows(matrix, {
       category: valueOf(rest, "--category"),
       query: valueOf(rest, "--search")
@@ -89,7 +96,7 @@ try {
     }
   } else if (command === "feature") {
     validateOptions(rest, ["--json"]);
-    const id = positionalArgs(rest)[0];
+    const id = validatePositionals(rest, [], 1)[0];
     const feature = getFeature(matrix, id);
     if (!feature) throw new Error(`Unknown feature: ${id ?? "(missing)"}`);
     if (has(rest, "--json")) emit(stringify(feature));
@@ -106,7 +113,7 @@ try {
     }
   } else if (command === "agent") {
     validateOptions(rest, ["--json"]);
-    const id = positionalArgs(rest)[0];
+    const id = validatePositionals(rest, [], 1)[0];
     const agent = getAgent(matrix, id);
     if (!agent) throw new Error(`Unknown agent: ${id ?? "(missing)"}`);
     const support = matrix.features.map((feature) => ({
@@ -128,7 +135,7 @@ try {
     if (!target) throw new Error("check requires --agent <agent-id>");
     const agent = getAgent(matrix, target);
     if (!agent) throw new Error(`Unknown agent: ${target}`);
-    const targetPath = path.resolve(positionalArgs(rest, ["--agent", "--format", "--output"])[0] ?? ".");
+    const targetPath = path.resolve(validatePositionals(rest, ["--agent", "--format", "--output"], 1)[0] ?? ".");
     const detections = scanRepository(targetPath);
     const findings = compatibilityFindings(matrix, detections, target);
     const format = has(rest, "--json") ? "json" : (valueOf(rest, "--format") ?? "text");
@@ -147,9 +154,11 @@ try {
     }
   } else if (command === "categories") {
     validateOptions(rest, []);
+    validatePositionals(rest);
     for (const category of listCategories(matrix)) console.log(category);
   } else if (command === "agents") {
     validateOptions(rest, []);
+    validatePositionals(rest);
     for (const agent of matrix.agents) console.log(`${agent.id}\t${agent.name}`);
   } else {
     throw new Error(`Unknown command: ${command}`);
