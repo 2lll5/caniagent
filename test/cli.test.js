@@ -2,12 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { packageVersion } from "../src/core.js";
 
 const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
 
 function run(args) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
 }
+
+test("reports the package version", () => {
+  const result = run(["--version"]);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), packageVersion);
+});
 
 test("rejects an option whose value is another option", () => {
   const result = run(["check", ".", "--agent", "--format", "json"]);
