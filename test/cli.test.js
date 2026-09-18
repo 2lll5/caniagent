@@ -45,6 +45,20 @@ test("rejects options for commands that do not accept any", () => {
   assert.match(result.stderr, /caniagent: Unknown option: --json/);
 });
 
+test("rejects unexpected positional arguments", () => {
+  const result = run(["check", ".", "extra", "--agent", "codex"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: Unexpected argument: extra/);
+});
+
+test("rejects positional arguments for commands that accept none", () => {
+  const result = run(["agents", "extra"]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /caniagent: Unexpected argument: extra/);
+});
+
 test("still accepts valid valued options", () => {
   const result = run(["matrix", "--search", "sandbox", "--json"]);
 
