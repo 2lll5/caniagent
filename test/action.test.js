@@ -20,3 +20,12 @@ test("validates upload-sarif instead of silently treating typos as false", () =>
   assert.match(validateBlock, /true\|false\)/);
   assert.match(validateBlock, /upload-sarif must be 'true' or 'false'/);
 });
+
+test("pins third-party Action dependencies to immutable commits", () => {
+  const uses = [...action.matchAll(/^\s*uses:\s*(\S+)/gm)].map((match) => match[1]);
+
+  assert.ok(uses.length > 0, "expected at least one Action dependency");
+  for (const dependency of uses) {
+    assert.match(dependency, /@[0-9a-f]{40}$/i, `${dependency} must use a full commit SHA`);
+  }
+});
