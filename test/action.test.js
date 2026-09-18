@@ -23,7 +23,7 @@ test("validates upload-sarif instead of silently treating typos as false", () =>
 });
 
 function assertImmutableActionPins(source, label) {
-  const uses = [...source.matchAll(/^\s*uses:\s*(\S+)/gm)]
+  const uses = [...source.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)/gm)]
     .map((match) => match[1])
     .filter((dependency) => !dependency.startsWith("./"));
 
