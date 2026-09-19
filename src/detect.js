@@ -9,10 +9,6 @@ const RULES = [
   { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: instructionFeature, native: ["claude-code"], label: "CLAUDE.md" },
   { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: instructionFeature, native: ["gemini-cli"], label: "GEMINI.md" },
   { match: (rel) => /(^|\/)\.mcp\.json$/.test(rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
-  { match: (rel) => /(^|\/)opencode\.jsonc?$/.test(rel), feature: "project-instructions", native: ["opencode"], label: "OpenCode config" },
-  { match: (rel) => /(^|\/)\.codex\/config\.toml$/.test(rel), feature: "project-instructions", native: ["codex"], label: "Codex config" },
-  { match: (rel) => /(^|\/)\.gemini\/settings\.json$/.test(rel), feature: "project-instructions", native: ["gemini-cli"], label: "Gemini settings" },
-  { match: (rel) => /(^|\/)\.claude\/settings(\.local)?\.json$/.test(rel), feature: "project-instructions", native: ["claude-code"], label: "Claude settings" },
   { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.opencode)\/skills\//.test(rel), feature: "skills", native: ["codex", "claude-code", "opencode"], label: "SKILL.md" }
 ];
 
