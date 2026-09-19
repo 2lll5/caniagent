@@ -19,6 +19,19 @@ test("scanner finds common coding-agent files", () => {
   assert.ok(found.some((item) => item.path === ".mcp.json"));
 });
 
+test("scanner does not misclassify generic agent config as project instructions", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-config-"));
+  fs.mkdirSync(path.join(dir, ".codex"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".gemini"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".claude"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".codex", "config.toml"), "model = \"example\"");
+  fs.writeFileSync(path.join(dir, ".gemini", "settings.json"), "{}");
+  fs.writeFileSync(path.join(dir, ".claude", "settings.json"), "{}");
+  fs.writeFileSync(path.join(dir, "opencode.json"), "{}");
+
+  assert.deepEqual(scanRepository(dir), []);
+});
+
 test("scanner classifies nested instruction files separately", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-"));
   fs.mkdirSync(path.join(dir, "packages", "api"), { recursive: true });
