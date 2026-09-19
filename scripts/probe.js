@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { loadMatrix } from "../src/core.js";
-import { classifyProbeExecution, redactProbeOutput } from "./probe-utils.js";
+import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
 
 const matrix = loadMatrix();
 const now = new Date().toISOString();
@@ -20,8 +20,8 @@ function run(command, args, timeout = 8000) {
     outcome,
     status: result.status,
     signal: result.signal,
-    stdout: redactProbeOutput((result.stdout ?? "").slice(0, 12000)),
-    stderr: redactProbeOutput((result.stderr ?? "").slice(0, 12000)),
+    stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
+    stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
     error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
   };
 }

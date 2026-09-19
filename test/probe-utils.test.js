@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyProbeExecution, redactProbeOutput } from "../scripts/probe-utils.js";
+import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "../scripts/probe-utils.js";
 
 test("redacts home directory paths", () => {
   const home = "/Users/example";
@@ -44,6 +44,16 @@ test("redacts credentials embedded in command-shaped output", () => {
   assert.equal(output.includes("top-secret-value"), false);
   assert.match(output, /--api-key=<REDACTED>/);
   assert.match(output, /--token: <REDACTED>/);
+});
+
+test("redacts secrets before truncating probe output", () => {
+  const token = "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH";
+  const input = `${"x".repeat(20)}${token}`;
+  const output = redactAndTruncateProbeOutput(input, { maxLength: 35, home: "" });
+
+  assert.equal(output.includes("github_pat_"), false);
+  assert.equal(output.includes("11AA"), false);
+  assert.equal(output, `${"x".repeat(20)}<REDACTED>`);
 });
 
 test("leaves ordinary diagnostic output intact", () => {

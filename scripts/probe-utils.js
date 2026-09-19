@@ -1,11 +1,11 @@
 import os from "node:os";
 
 const SECRET_PATTERNS = [
-  /\b(sk-[A-Za-z0-9_-]{12,})\b/g,
-  /\b(gh[pousr]_[A-Za-z0-9_]{12,})\b/g,
-  /\b(github_pat_[A-Za-z0-9_]{12,})\b/g,
-  /\b(npm_[A-Za-z0-9]{12,})\b/g,
-  /\b(AIza[0-9A-Za-z_-]{20,})\b/g,
+  /(sk-[A-Za-z0-9_-]{12,})\b/g,
+  /(gh[pousr]_[A-Za-z0-9_]{12,})\b/g,
+  /(github_pat_[A-Za-z0-9_]{12,})\b/g,
+  /(npm_[A-Za-z0-9]{12,})\b/g,
+  /(AIza[0-9A-Za-z_-]{20,})\b/g,
   /\b(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi,
   /\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi
 ];
@@ -29,6 +29,10 @@ export function redactProbeOutput(value, { home = os.homedir() } = {}) {
   }
 
   return output;
+}
+
+export function redactAndTruncateProbeOutput(value, { maxLength = 12000, home = os.homedir() } = {}) {
+  return redactProbeOutput(value, { home }).slice(0, maxLength);
 }
 
 export function classifyProbeExecution(result) {
