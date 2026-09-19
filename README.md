@@ -75,7 +75,7 @@ This table is a human-readable snapshot. `data/matrix.json` is the source of tru
 
 ## GitHub Action
 
-Use CanIAgent in a pull request to surface migration-attention findings as SARIF:
+Use CanIAgent in a pull request to surface migration-attention findings as SARIF. Pin third-party actions to reviewed commit SHAs so an upstream tag or branch cannot silently change what your workflow executes:
 
 ```yaml
 name: Coding-agent compatibility
@@ -89,13 +89,13 @@ jobs:
   caniagent:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: 2lll5/caniagent@main
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: 2lll5/caniagent@b3635be188a340f264cf5d99477dfdfe3784c3bd # reviewed main commit
         with:
           agent: codex
 ```
 
-Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency.
+Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency. When updating CanIAgent or checkout, review the new revision and replace the pinned SHA deliberately.
 
 ## Data API
 
