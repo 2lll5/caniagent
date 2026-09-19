@@ -31,6 +31,10 @@ export function redactProbeOutput(value, { home = os.homedir() } = {}) {
   return output;
 }
 
+export function redactAndTruncateProbeOutput(value, { maxLength = 12000, home = os.homedir() } = {}) {
+  return redactProbeOutput(value, { home }).slice(0, maxLength);
+}
+
 export function classifyProbeExecution(result) {
   if (result?.error) {
     if (result.error.code === "ENOENT") return "not_found";
