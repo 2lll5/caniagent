@@ -10,14 +10,26 @@ const SECRET_PATTERNS = [
   /\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi
 ];
 
-export function redactProbeOutput(value, { home = os.homedir() } = {}) {
-  let output = String(value ?? "");
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
-  if (home) {
-    const normalizedHome = home.replaceAll("\\", "/");
-    output = output.replaceAll(home, "<HOME>");
-    if (normalizedHome !== home) output = output.replaceAll(normalizedHome, "<HOME>");
+function redactHomePaths(output, home) {
+  if (!home) return output;
+
+  const normalizedHome = home.replaceAll("\\", "/");
+  if (/^[A-Za-z]:[\\/]/.test(home)) {
+    const windowsHome = escapeRegExp(normalizedHome).replaceAll("/", "[\\\\/]");
+    return output.replace(new RegExp(windowsHome, "gi"), "<HOME>");
   }
+
+  output = output.replaceAll(home, "<HOME>");
+  if (normalizedHome !== home) output = output.replaceAll(normalizedHome, "<HOME>");
+  return output;
+}
+
+export function redactProbeOutput(value, { home = os.homedir() } = {}) {
+  let output = redactHomePaths(String(value ?? ""), home);
 
   for (const pattern of SECRET_PATTERNS) {
     output = output.replace(pattern, (match, prefix) => {
