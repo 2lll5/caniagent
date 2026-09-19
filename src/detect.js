@@ -16,7 +16,7 @@ const RULES = [
 
 const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next", "target", ".venv", "venv"]);
 
-export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
+export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
   const resolvedRoot = path.resolve(root);
   let rootStat;
   try {
