@@ -8,6 +8,21 @@ const agentIds = new Set();
 const featureIds = new Set();
 const errors = [];
 
+function isValidCheckedDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 for (const agent of matrix.agents ?? []) {
   if (!agent.id) errors.push("agent missing id");
   if (agentIds.has(agent.id)) errors.push(`duplicate agent id: ${agent.id}`);
@@ -25,6 +40,12 @@ for (const feature of matrix.features ?? []) {
     else if (!validStatuses.has(cell.status)) errors.push(`${feature.id}/${agent.id}: invalid status ${cell.status}`);
     if (cell?.status !== "unknown" && !(cell?.evidence?.length)) {
       errors.push(`${feature.id}/${agent.id}: non-unknown cell needs evidence`);
+    }
+    for (const [index, evidence] of (cell?.evidence ?? []).entries()) {
+      const prefix = `${feature.id}/${agent.id}: evidence ${index + 1}`;
+      if (!evidence?.type || typeof evidence.type !== "string") errors.push(`${prefix} needs a type`);
+      if (!isHttpUrl(evidence?.url)) errors.push(`${prefix} needs an http(s) URL`);
+      if (!isValidCheckedDate(evidence?.checked)) errors.push(`${prefix} needs a valid checked date (YYYY-MM-DD)`);
     }
   }
 }
