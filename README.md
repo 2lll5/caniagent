@@ -53,7 +53,7 @@ node src/cli.js check . --agent gemini-cli --format json
 node src/cli.js check . --agent codex --format sarif --output caniagent.sarif
 ```
 
-The scanner recognizes common agent configuration surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `.mcp.json`, `.gemini/settings.json`, OpenCode configuration, and Codex configuration hints. It reports native conventions and migration attention points; it does **not** rewrite your repository.
+The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and `.mcp.json`. Generic agent settings files are intentionally not treated as instruction files because their presence alone does not prove use of a matrix capability. It reports native conventions and migration attention points; it does **not** rewrite your repository.
 
 ## Current matrix
 
@@ -66,7 +66,7 @@ The scanner recognizes common agent configuration surfaces such as `AGENTS.md`, 
 | Lifecycle hooks | ✅ | ✅ | ❔ | ✅ |
 | Non-interactive mode | ✅ | ✅ | ✅ | ✅ |
 | Machine-readable output | ✅ | ✅ | ✅ | ❔ |
-| Resume sessions | ✅ | ✅ | 🟡 | 🟡 |
+| Resume sessions | ✅ | 🟡 | 🟡 | 🟡 |
 | Execution sandbox | ✅ | 🟡 | ✅ | 🟡 |
 
 **Legend:** ✅ yes · 🟡 partial · 🧪 experimental · ❔ unknown · ❌ no
