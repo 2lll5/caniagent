@@ -19,6 +19,18 @@ test("scanner finds common coding-agent files", () => {
   assert.ok(found.some((item) => item.path === ".mcp.json"));
 });
 
+test("scanner finds deeply nested instruction files by default", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-deep-default-"));
+  const segments = Array.from({ length: 10 }, (_, index) => `level-${index + 1}`);
+  const nested = path.join(dir, ...segments);
+  fs.mkdirSync(nested, { recursive: true });
+  fs.writeFileSync(path.join(nested, "AGENTS.md"), "# deeply scoped agent rules");
+
+  assert.deepEqual(scanRepository(dir).map((item) => item.path), [
+    `${segments.join("/")}/AGENTS.md`
+  ]);
+});
+
 test("scanner does not treat differently-cased paths as documented conventions", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-case-"));
   fs.mkdirSync(path.join(dir, ".CLAUDE", "skills", "ship"), { recursive: true });
