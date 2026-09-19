@@ -14,7 +14,7 @@ const RULES = [
   { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.opencode)\/skills\//.test(rel), feature: "skills", native: ["codex", "claude-code", "opencode"], label: "SKILL.md" }
 ];
 
-const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next", "target"]);
+const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next", "target", ".venv", "venv"]);
 
 export function scanRepository(root, { maxDepth = 6, maxFiles = 20000 } = {}) {
   const resolvedRoot = path.resolve(root);
