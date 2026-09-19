@@ -26,6 +26,17 @@ test("redacts common credential shapes while preserving labels", () => {
   assert.match(output, /token: <REDACTED>/);
 });
 
+test("redacts modern GitHub and npm token prefixes without labels", () => {
+  const githubToken = "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH";
+  const npmToken = "npm_abcdefghijklmnopqrstuvwxyz1234567890";
+  const input = `github=${githubToken}\nnpm=${npmToken}`;
+  const output = redactProbeOutput(input, { home: "" });
+
+  assert.equal(output.includes(githubToken), false);
+  assert.equal(output.includes(npmToken), false);
+  assert.equal(output, "github=<REDACTED>\nnpm=<REDACTED>");
+});
+
 test("redacts credentials embedded in command-shaped output", () => {
   const input = "agent run --api-key=super-secret-value --token: top-secret-value";
   const output = redactProbeOutput(input, { home: "" });
