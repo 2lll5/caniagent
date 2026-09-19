@@ -8,6 +8,15 @@ test("redacts home directory paths", () => {
   assert.equal(redactProbeOutput(input, { home }), "config: <HOME>/.agent/config.json");
 });
 
+test("redacts Windows home paths across case and separator differences", () => {
+  const home = "C:\\Users\\Example";
+  const input = "config: c:/users/example/.agent/config.json\ncache: C:\\USERS\\EXAMPLE\\.cache";
+  assert.equal(
+    redactProbeOutput(input, { home }),
+    "config: <HOME>/.agent/config.json\ncache: <HOME>\\.cache"
+  );
+});
+
 test("redacts common credential shapes while preserving labels", () => {
   const input = [
     "Authorization: Bearer abc.def.ghi",
