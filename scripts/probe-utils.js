@@ -7,7 +7,8 @@ const SECRET_PATTERNS = [
   /(npm_[A-Za-z0-9]{12,})\b/g,
   /(AIza[0-9A-Za-z_-]{20,})\b/g,
   /\b(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi,
-  /\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi
+  /\b((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi,
+  /\b([A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)\s*[=:]\s*)[^\s,;]+/gi
 ];
 
 function escapeRegExp(value) {
@@ -33,7 +34,7 @@ export function redactProbeOutput(value, { home = os.homedir() } = {}) {
 
   for (const pattern of SECRET_PATTERNS) {
     output = output.replace(pattern, (match, prefix) => {
-      if (prefix && /^(Bearer\s+|(?:api[_-]?key|token|secret|password)\s*[=:]\s*)$/i.test(prefix)) {
+      if (prefix && /(?:Bearer\s+|(?:[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)|api[_-]?key|token|secret|password)\s*[=:]\s*)$/i.test(prefix)) {
         return `${prefix}<REDACTED>`;
       }
       return "<REDACTED>";
