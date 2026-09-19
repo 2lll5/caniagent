@@ -19,6 +19,16 @@ test("scanner finds common coding-agent files", () => {
   assert.ok(found.some((item) => item.path === ".mcp.json"));
 });
 
+test("scanner does not treat differently-cased paths as documented conventions", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-case-"));
+  fs.mkdirSync(path.join(dir, ".CLAUDE", "skills", "ship"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "agents.md"), "# not AGENTS.md");
+  fs.writeFileSync(path.join(dir, ".CLAUDE", "skills", "ship", "skill.md"), "---\nname: ship\n---");
+  fs.writeFileSync(path.join(dir, ".MCP.json"), "{}");
+
+  assert.deepEqual(scanRepository(dir), []);
+});
+
 test("scanner rejects a missing root instead of reporting an empty repository", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-missing-"));
   const missing = path.join(dir, "does-not-exist");
