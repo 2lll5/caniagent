@@ -35,6 +35,26 @@ test("redacts common credential shapes while preserving labels", () => {
   assert.match(output, /token: <REDACTED>/);
 });
 
+test("redacts prefixed secret environment variable assignments", () => {
+  const input = [
+    "OPENAI_API_KEY=opaque-provider-value",
+    "AWS_SECRET_ACCESS_KEY: opaque-aws-value",
+    "MY_SERVICE_TOKEN=opaque-service-value",
+    "DEPLOY_PASSWORD=opaque-password",
+    "SIGNING_PRIVATE_KEY=opaque-private-key"
+  ].join("\n");
+  const output = redactProbeOutput(input, { home: "" });
+
+  for (const secret of ["opaque-provider-value", "opaque-aws-value", "opaque-service-value", "opaque-password", "opaque-private-key"]) {
+    assert.equal(output.includes(secret), false);
+  }
+  assert.match(output, /OPENAI_API_KEY=<REDACTED>/);
+  assert.match(output, /AWS_SECRET_ACCESS_KEY: <REDACTED>/);
+  assert.match(output, /MY_SERVICE_TOKEN=<REDACTED>/);
+  assert.match(output, /DEPLOY_PASSWORD=<REDACTED>/);
+  assert.match(output, /SIGNING_PRIVATE_KEY=<REDACTED>/);
+});
+
 test("redacts modern GitHub and npm token prefixes without labels", () => {
   const githubToken = "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH";
   const npmToken = "npm_abcdefghijklmnopqrstuvwxyz1234567890";
