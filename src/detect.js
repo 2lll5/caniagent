@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+const instructionFeature = (rel) => rel.includes("/") ? "nested-instructions" : "project-instructions";
+
 const RULES = [
-  { match: (rel, name) => /^AGENTS\.md$/.test(name), feature: "project-instructions", native: ["codex", "opencode"], label: "AGENTS.md" },
-  { match: (rel, name) => /^AGENTS\.override\.md$/.test(name), feature: "project-instructions", native: ["codex"], label: "AGENTS.override.md" },
-  { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: "project-instructions", native: ["claude-code"], label: "CLAUDE.md" },
-  { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: "project-instructions", native: ["gemini-cli"], label: "GEMINI.md" },
+  { match: (rel, name) => /^AGENTS\.md$/.test(name), feature: instructionFeature, native: ["codex", "opencode"], label: "AGENTS.md" },
+  { match: (rel, name) => /^AGENTS\.override\.md$/.test(name), feature: instructionFeature, native: ["codex"], label: "AGENTS.override.md" },
+  { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: instructionFeature, native: ["claude-code"], label: "CLAUDE.md" },
+  { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: instructionFeature, native: ["gemini-cli"], label: "GEMINI.md" },
   { match: (rel) => /(^|\/)\.mcp\.json$/.test(rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
   { match: (rel) => /(^|\/)opencode\.jsonc?$/.test(rel), feature: "project-instructions", native: ["opencode"], label: "OpenCode config" },
   { match: (rel) => /(^|\/)\.codex\/config\.toml$/.test(rel), feature: "project-instructions", native: ["codex"], label: "Codex config" },
@@ -67,7 +69,8 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
 
       for (const rule of RULES) {
         if (rule.match(rel, entry.name)) {
-          found.push({ path: rel, feature: rule.feature, native: rule.native, label: rule.label });
+          const feature = typeof rule.feature === "function" ? rule.feature(rel) : rule.feature;
+          found.push({ path: rel, feature, native: rule.native, label: rule.label });
           break;
         }
       }

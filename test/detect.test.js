@@ -19,6 +19,24 @@ test("scanner finds common coding-agent files", () => {
   assert.ok(found.some((item) => item.path === ".mcp.json"));
 });
 
+test("scanner classifies nested instruction files separately", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-"));
+  fs.mkdirSync(path.join(dir, "packages", "api"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# root rules");
+  fs.writeFileSync(path.join(dir, "packages", "api", "AGENTS.md"), "# scoped rules");
+
+  const found = scanRepository(dir);
+  assert.deepEqual(found.map(({ path: file, feature }) => ({ path: file, feature })), [
+    { path: "AGENTS.md", feature: "project-instructions" },
+    { path: "packages/api/AGENTS.md", feature: "nested-instructions" }
+  ]);
+
+  const findings = compatibilityFindings(loadMatrix(), found, "codex");
+  const nested = findings.find((item) => item.featureId === "nested-instructions");
+  assert.deepEqual(nested?.detected, ["packages/api/AGENTS.md"]);
+  assert.equal(nested?.nativeCount, 1);
+});
+
 test("scanner finds deeply nested instruction files by default", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-deep-default-"));
   const segments = Array.from({ length: 10 }, (_, index) => `level-${index + 1}`);
