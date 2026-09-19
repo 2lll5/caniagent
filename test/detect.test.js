@@ -29,6 +29,18 @@ test("scanner does not treat differently-cased paths as documented conventions",
   assert.deepEqual(scanRepository(dir), []);
 });
 
+test("scanner skips Python virtual environments", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-venv-"));
+  for (const envName of [".venv", "venv"]) {
+    const deep = path.join(dir, envName, "lib", "python", "site-packages", "one", "two", "three", "four");
+    fs.mkdirSync(deep, { recursive: true });
+    fs.writeFileSync(path.join(deep, "AGENTS.md"), "# dependency fixture");
+  }
+  fs.writeFileSync(path.join(dir, "AGENTS.md"), "# project rules");
+
+  assert.deepEqual(scanRepository(dir).map((item) => item.path), ["AGENTS.md"]);
+});
+
 test("scanner rejects a missing root instead of reporting an empty repository", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-missing-"));
   const missing = path.join(dir, "does-not-exist");
