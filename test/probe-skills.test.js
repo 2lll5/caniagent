@@ -12,7 +12,13 @@ test("skill probe adapters use documented project discovery conventions", () => 
   assert.equal(SKILL_PROBE_SPECS["gemini-cli"], undefined);
 });
 
-test("skill fixture contains a deterministic marker only inside SKILL.md", () => {
+test("skill probe adapters only encode documented isolated user discovery conventions", () => {
+  assert.deepEqual(SKILL_PROBE_SPECS.codex.userPath, [".agents", "skills"]);
+  assert.equal(SKILL_PROBE_SPECS["claude-code"].userPath, undefined);
+  assert.deepEqual(SKILL_PROBE_SPECS.opencode.userPath, [".config", "opencode", "skills"]);
+});
+
+test("project skill fixture contains a deterministic marker only inside SKILL.md", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skill-probe-test-"));
   try {
     const fixture = createSkillFixture(temp, "codex");
@@ -25,8 +31,29 @@ test("skill fixture contains a deterministic marker only inside SKILL.md", () =>
   }
 });
 
+test("user skill fixture stays inside the isolated home", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skill-user-probe-test-"));
+  try {
+    const fixture = createSkillFixture(temp, "opencode", "user");
+    assert.equal(fixture.discoveryPath, `~/.config/opencode/skills/${fixture.skillName}/`);
+    assert.equal(path.relative(path.join(temp, "home"), fixture.skillDir).startsWith(".."), false);
+    assert.equal(fs.existsSync(path.join(fixture.skillDir, "SKILL.md")), true);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("undocumented user scope is rejected instead of guessed", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skill-unknown-scope-test-"));
+  try {
+    assert.throws(() => createSkillFixture(temp, "claude-code", "user"), /No user-scope Agent Skills discovery path/);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("skill output classification never turns missing evidence into unsupported", () => {
-  assert.deepEqual(classifySkillOutput("prefix CANIAGENT_SKILL_CODEX suffix", "CANIAGENT_SKILL_CODEX"), { discovered: true, verdict: "pass" });
-  assert.deepEqual(classifySkillOutput("no marker", "CANIAGENT_SKILL_CODEX"), { discovered: false, verdict: "inconclusive" });
-  assert.deepEqual(classifySkillOutput("CANIAGENT_SKILL_CODEX", "CANIAGENT_SKILL_CODEX", "error"), { discovered: false, verdict: "inconclusive" });
+  assert.deepEqual(classifySkillOutput("prefix CANIAGENT_SKILL_CODEX_PROJECT suffix", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: true, verdict: "pass" });
+  assert.deepEqual(classifySkillOutput("no marker", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: false, verdict: "inconclusive" });
+  assert.deepEqual(classifySkillOutput("CANIAGENT_SKILL_CODEX_PROJECT", "CANIAGENT_SKILL_CODEX_PROJECT", "error"), { discovered: false, verdict: "inconclusive" });
 });
