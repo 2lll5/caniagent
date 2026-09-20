@@ -7,20 +7,24 @@ import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
 
 export const SKILL_PROBE_SPECS = {
-  codex: { projectPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
+  codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
   "claude-code": { projectPath: [".claude", "skills"], versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
-  opencode: { projectPath: [".opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
+  opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
 };
 
-export function createSkillFixture(baseDir, agentId) {
+export function createSkillFixture(baseDir, agentId, scope = "project") {
   const spec = SKILL_PROBE_SPECS[agentId];
   if (!spec) throw new Error(`No Agent Skills probe adapter for ${agentId}`);
-  const suffix = agentId.replaceAll("-", "_").toUpperCase();
+  const scopePath = scope === "project" ? spec.projectPath : scope === "user" ? spec.userPath : undefined;
+  if (!scopePath) throw new Error(`No ${scope}-scope Agent Skills discovery path for ${agentId}`);
+  const suffix = `${agentId}-${scope}`.replaceAll("-", "_").toUpperCase();
   const marker = `CANIAGENT_SKILL_${suffix}`;
-  const skillName = `caniagent-probe-${agentId}`;
+  const skillName = `caniagent-probe-${agentId}-${scope}`;
   const workspace = path.join(baseDir, "workspace");
-  const skillDir = path.join(workspace, ...spec.projectPath, skillName);
+  const root = scope === "project" ? workspace : path.join(baseDir, "home");
+  const skillDir = path.join(root, ...scopePath, skillName);
   fs.mkdirSync(skillDir, { recursive: true });
+  fs.mkdirSync(workspace, { recursive: true });
   fs.writeFileSync(path.join(workspace, "README.md"), "# CanIAgent Agent Skills probe fixture\n");
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), [
     "---",
@@ -31,7 +35,10 @@ export function createSkillFixture(baseDir, agentId) {
     `When invoked for the CanIAgent skill discovery probe, reply with exactly: ${marker}`,
     ""
   ].join("\n"));
-  return { workspace, skillDir, skillName, marker, discoveryPath: path.relative(workspace, skillDir).split(path.sep).join("/") + "/" };
+  const discoveryPath = scope === "project"
+    ? path.relative(workspace, skillDir).split(path.sep).join("/") + "/"
+    : `~/${[...scopePath, skillName].join("/")}/`;
+  return { workspace, skillDir, skillName, marker, discoveryPath };
 }
 
 export function classifySkillOutput(output, marker, executionOutcome = "success") {
@@ -72,30 +79,33 @@ function main() {
   for (const agent of matrix.agents) {
     const spec = SKILL_PROBE_SPECS[agent.id];
     if (!spec) {
-      results.push({ agent: agent.id, observedAt, verdict: "unknown", reason: "No documented project-scope Agent Skills discovery path is encoded in this probe." });
+      results.push({ agent: agent.id, observedAt, verdict: "unknown", reason: "No documented Agent Skills discovery path is encoded in this probe." });
       continue;
     }
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), `caniagent-skills-${agent.id}-`));
-    try {
-      const home = path.join(temp, "home");
-      fs.mkdirSync(home, { recursive: true });
-      const env = isolatedEnvironment(home);
-      const fixture = createSkillFixture(temp, agent.id);
-      const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
-      const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
-      const execution = run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env });
-      const combined = `${execution.stdout}\n${execution.stderr}`;
-      results.push({
-        agent: agent.id,
-        observedAt,
-        scope: "project",
-        discoveryPath: fixture.discoveryPath,
-        version,
-        execution,
-        ...classifySkillOutput(combined, fixture.marker, execution.outcome)
-      });
-    } finally {
-      fs.rmSync(temp, { recursive: true, force: true });
+    const scopes = ["project", ...(spec.userPath ? ["user"] : [])];
+    for (const scope of scopes) {
+      const temp = fs.mkdtempSync(path.join(os.tmpdir(), `caniagent-skills-${agent.id}-${scope}-`));
+      try {
+        const home = path.join(temp, "home");
+        fs.mkdirSync(home, { recursive: true });
+        const env = isolatedEnvironment(home);
+        const fixture = createSkillFixture(temp, agent.id, scope);
+        const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+        const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
+        const execution = run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env });
+        const combined = `${execution.stdout}\n${execution.stderr}`;
+        results.push({
+          agent: agent.id,
+          observedAt,
+          scope,
+          discoveryPath: fixture.discoveryPath,
+          version,
+          execution,
+          ...classifySkillOutput(combined, fixture.marker, execution.outcome)
+        });
+      } finally {
+        fs.rmSync(temp, { recursive: true, force: true });
+      }
     }
   }
   const output = { schemaVersion: 1, probe: "agent-skills", observedAt, platform: process.platform, arch: process.arch, node: process.version, results };
