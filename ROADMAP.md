@@ -17,7 +17,8 @@ SARIF output and a reusable GitHub Action shipped in v0.2.
 
 - `caniagent check --from claude-code --agent codex` — shipped; scopes findings to conventions native to the source agent.
 - Suggested instruction-file translations — shipped for evidence-backed project/nested instruction conventions.
-- Suggested config hints and MCP scope differences.
+- Suggested MCP project-config destinations — shipped for evidence-backed target MCP support; schema rewriting remains out of scope.
+- Suggested config hints for other agent-specific settings.
 
 ## v0.4 — ecosystem
 

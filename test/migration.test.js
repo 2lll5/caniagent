@@ -57,3 +57,49 @@ test("does not suggest translations for unverified target instruction support", 
   const detections = [{ path: "SOURCE.md", feature: "project-instructions", native: ["source"] }];
   assert.deepEqual(migrationSuggestions(matrix, detections, "source", "target"), []);
 });
+
+test("suggests documented project MCP config destinations", () => {
+  const matrix = {
+    agents: [{ id: "gemini-cli", instructions: ["GEMINI.md"] }],
+    features: [{
+      id: "mcp",
+      support: {
+        "gemini-cli": {
+          status: "yes",
+          note: "Gemini CLI configures MCP servers in settings.json.",
+          evidence: [{ url: "https://example.test/gemini-mcp" }]
+        }
+      }
+    }]
+  };
+  const detections = [{ path: ".mcp.json", feature: "mcp", native: ["claude-code"] }];
+  const suggestions = migrationSuggestions(matrix, detections, "claude-code", "gemini-cli");
+
+  assert.equal(suggestions.length, 1);
+  assert.deepEqual(suggestions[0], {
+    kind: "mcp-config",
+    from: ".mcp.json",
+    to: ".gemini/settings.json",
+    targetAgent: "gemini-cli",
+    evidence: {
+      feature: "mcp",
+      status: "yes",
+      note: "Gemini CLI configures MCP servers in settings.json.",
+      urls: ["https://example.test/gemini-mcp"]
+    }
+  });
+});
+
+test("does not suggest MCP config without documented yes support and URL evidence", () => {
+  const detections = [{ path: ".mcp.json", feature: "mcp", native: ["claude-code"] }];
+  for (const support of [
+    { status: "unknown", evidence: [] },
+    { status: "yes", evidence: [] }
+  ]) {
+    const matrix = {
+      agents: [{ id: "gemini-cli", instructions: ["GEMINI.md"] }],
+      features: [{ id: "mcp", support: { "gemini-cli": support } }]
+    };
+    assert.deepEqual(migrationSuggestions(matrix, detections, "claude-code", "gemini-cli"), []);
+  }
+});
