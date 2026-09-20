@@ -55,6 +55,21 @@ test("redacts prefixed secret environment variable assignments", () => {
   assert.match(output, /SIGNING_PRIVATE_KEY=<REDACTED>/);
 });
 
+test("redacts credentials embedded in URLs while preserving destinations", () => {
+  const input = [
+    "registry=https://build-user:super-secret@registry.example.test/npm",
+    "proxy HTTP://alice:p%40ssword@proxy.example.test:8080"
+  ].join("\n");
+  const output = redactProbeOutput(input, { home: "" });
+
+  assert.equal(output.includes("build-user"), false);
+  assert.equal(output.includes("super-secret"), false);
+  assert.equal(output.includes("alice"), false);
+  assert.equal(output.includes("p%40ssword"), false);
+  assert.match(output, /https:\/\/<REDACTED>:<REDACTED>@registry\.example\.test\/npm/);
+  assert.match(output, /HTTP:\/\/<REDACTED>:<REDACTED>@proxy\.example\.test:8080/);
+});
+
 test("redacts modern GitHub and npm token prefixes without labels", () => {
   const githubToken = "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH";
   const npmToken = "npm_abcdefghijklmnopqrstuvwxyz1234567890";
