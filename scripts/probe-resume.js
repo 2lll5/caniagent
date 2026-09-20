@@ -10,7 +10,7 @@ export const RESUME_SPECS = {
   codex: {
     versionArgs: ["--version"],
     firstArgs: (prompt) => ["exec", "--skip-git-repo-check", prompt],
-    resumeArgs: (prompt) => ["exec", "resume", "--last", prompt]
+    resumeArgs: (prompt) => ["exec", "--skip-git-repo-check", "resume", "--last", prompt]
   },
   "claude-code": {
     versionArgs: ["--version"],
@@ -30,9 +30,7 @@ export const RESUME_SPECS = {
 };
 
 export function classifyResume(firstOutcome, resumedOutcome, resumedOutput, marker) {
-  if (firstOutcome !== "success" || resumedOutcome !== "success") {
-    return { markerObserved: false, verdict: "inconclusive" };
-  }
+  if (firstOutcome !== "success" || resumedOutcome !== "success") return { markerObserved: false, verdict: "inconclusive" };
   const markerObserved = resumedOutput.includes(marker);
   return { markerObserved, verdict: markerObserved ? "pass" : "fail" };
 }
@@ -51,14 +49,7 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
 }
 
 function isolatedEnvironment(home) {
-  return {
-    ...process.env,
-    HOME: home,
-    USERPROFILE: home,
-    XDG_CONFIG_HOME: path.join(home, ".config"),
-    XDG_DATA_HOME: path.join(home, ".local", "share"),
-    XDG_STATE_HOME: path.join(home, ".local", "state")
-  };
+  return { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_DATA_HOME: path.join(home, ".local", "share"), XDG_STATE_HOME: path.join(home, ".local", "state") };
 }
 
 function main() {
@@ -86,14 +77,7 @@ function main() {
       const resumed = first.outcome === "success"
         ? run(agent.command, spec.resumeArgs(resumePrompt), { cwd: workspace, env })
         : { command: redactProbeOutput([agent.command, ...spec.resumeArgs(resumePrompt)].join(" ")), outcome: "not-run", status: null, signal: null, stdout: "", stderr: "" };
-      results.push({
-        agent: agent.id,
-        observedAt,
-        version,
-        first,
-        resumed,
-        ...classifyResume(first.outcome, resumed.outcome, resumed.stdout, marker)
-      });
+      results.push({ agent: agent.id, observedAt, version, first, resumed, ...classifyResume(first.outcome, resumed.outcome, resumed.stdout, marker) });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }
@@ -107,9 +91,7 @@ function main() {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, JSON.stringify(output, null, 2) + "\n");
     console.log(outputPath);
-  } else {
-    console.log(JSON.stringify(output, null, 2));
-  }
+  } else console.log(JSON.stringify(output, null, 2));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main();
