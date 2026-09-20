@@ -7,10 +7,10 @@ import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
 
 export const NESTED_PROBE_SPECS = {
-  codex: { file: "AGENTS.md", args: (prompt) => ["exec", "--ephemeral", prompt] },
-  "claude-code": { file: "CLAUDE.md", args: (prompt) => ["-p", prompt] },
-  "gemini-cli": { file: "GEMINI.md", args: (prompt) => ["-p", prompt] },
-  opencode: { file: "AGENTS.md", args: (prompt) => ["run", prompt] }
+  codex: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
+  "claude-code": { file: "CLAUDE.md", versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
+  "gemini-cli": { file: "GEMINI.md", versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
+  opencode: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
 };
 
 export function createNestedInstructionFixture(baseDir, agentId) {
@@ -72,14 +72,17 @@ function main() {
     try {
       const home = path.join(temp, "home");
       fs.mkdirSync(home, { recursive: true });
+      const env = isolatedEnvironment(home);
       const fixture = createNestedInstructionFixture(temp, agent.id);
+      const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.";
-      const execution = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env: isolatedEnvironment(home) });
+      const execution = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env });
       const combined = `${execution.stdout}\n${execution.stderr}`;
       results.push({
         agent: agent.id,
         observedAt,
         instructionFile: fixture.file,
+        version,
         execution,
         markers: execution.outcome === "success"
           ? classifyNestedMarkers(combined, fixture)

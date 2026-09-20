@@ -15,6 +15,7 @@ for (const agentId of Object.keys(NESTED_PROBE_SPECS)) {
       assert.match(root, new RegExp(fixture.rootMarker));
       assert.match(nested, new RegExp(fixture.nestedMarker));
       assert.notEqual(fixture.rootMarker, fixture.nestedMarker);
+      assert.deepEqual(NESTED_PROBE_SPECS[agentId].versionArgs, ["--version"]);
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }
