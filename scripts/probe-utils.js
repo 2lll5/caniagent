@@ -32,6 +32,10 @@ function redactHomePaths(output, home) {
 export function redactProbeOutput(value, { home = os.homedir() } = {}) {
   let output = redactHomePaths(String(value ?? ""), home);
 
+  // Agent diagnostics can echo authenticated registry/proxy URLs. Preserve the
+  // destination for debugging while removing both user-info fields.
+  output = output.replace(/\b(https?:\/\/)[^\s/@:]+:[^\s/@]+@/gi, "$1<REDACTED>:<REDACTED>@");
+
   for (const pattern of SECRET_PATTERNS) {
     output = output.replace(pattern, (match, prefix) => {
       if (prefix && /(?:Bearer\s+|(?:[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)(?:_[A-Za-z0-9_]+)*|api[_-]?key|token|secret|password)\s*[=:]\s*)$/i.test(prefix)) {
