@@ -14,9 +14,15 @@ With `--from <agent-id>`, CanIAgent first keeps only detected files whose conven
 
 ## Suggested instruction-file translations
 
-Migration mode also suggests target instruction filenames when the matrix has documented `yes` support for the target's project-instruction convention. For example, migrating Claude Code to Codex can suggest `CLAUDE.md → AGENTS.md`; a nested `packages/api/CLAUDE.md` becomes `packages/api/AGENTS.md` so the repository-relative scope is preserved.
+Migration mode suggests target instruction filenames when the matrix has documented `yes` support with URL evidence for the target's project-instruction convention. For example, migrating Claude Code to Codex can suggest `CLAUDE.md → AGENTS.md`; a nested `packages/api/CLAUDE.md` becomes `packages/api/AGENTS.md` so the repository-relative scope is preserved.
 
-Suggestions are advisory: CanIAgent does not rename, copy, or rewrite files. Each JSON suggestion includes the matrix evidence note and source URLs used to justify the target convention. It deliberately emits no suggestion for `unknown`, `partial`, or undocumented target support, and it does not yet guess at Skills, config, or MCP translations where path/scope semantics need more specific evidence.
+## Suggested MCP config destinations
+
+When migration mode detects a source-native MCP config that is foreign to the target, it can suggest the target's documented project configuration destination. For example, Claude Code's `.mcp.json` can map to Gemini CLI's `.gemini/settings.json`. The suggestion is a destination hint only: MCP configuration schemas differ between agents, so CanIAgent does not claim the source file can be copied verbatim or automatically rewrite server definitions.
+
+MCP hints are emitted only when the target's MCP matrix entry is documented `yes` and contains URL evidence. The currently recognized project destinations are `.codex/config.toml`, `.mcp.json`, `.gemini/settings.json`, and `opencode.json`; they correspond to the project configuration conventions documented by each agent's MCP/configuration guidance.
+
+Suggestions are advisory: CanIAgent does not rename, copy, or rewrite files. Each JSON suggestion includes the matrix evidence note and source URLs used to justify the target convention. It deliberately emits no suggestion for `unknown`, `partial`, or undocumented target support. Skills translations remain intentionally unsuggested where path/scope semantics need more specific evidence.
 
 The JSON report includes a `source` agent object when migration mode is active (`null` otherwise) and a `suggestions` array. SARIF continues to contain the same scoped compatibility findings; suggestions do not create diagnostics by themselves. `--from` must name a known agent and must differ from `--agent`.
 
