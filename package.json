@@ -9,12 +9,13 @@
     "check": "npm run validate && npm test && npm run lint",
     "validate": "node scripts/validate-data.js",
     "test": "node --test",
-    "lint": "node --check src/cli.js && node --check src/core.js && node --check src/detect.js && node --check src/format.js && node --check src/sarif.js && node --check scripts/probe.js && node --check scripts/probe-utils.js && node --check scripts/probe-nested.js && node --check scripts/probe-mcp.js && node --check scripts/probe-skills.js && node --check scripts/mcp-echo-server.js",
+    "lint": "node --check src/cli.js && node --check src/core.js && node --check src/detect.js && node --check src/format.js && node --check src/sarif.js && node --check scripts/probe.js && node --check scripts/probe-utils.js && node --check scripts/probe-nested.js && node --check scripts/probe-mcp.js && node --check scripts/probe-skills.js && node --check scripts/probe-structured-output.js && node --check scripts/mcp-echo-server.js",
     "site:data": "node scripts/generate-site-data.js",
     "probe": "node scripts/probe.js",
     "probe:nested": "node scripts/probe-nested.js",
     "probe:mcp": "node scripts/probe-mcp.js",
-    "probe:skills": "node scripts/probe-skills.js"
+    "probe:skills": "node scripts/probe-skills.js",
+    "probe:structured": "node scripts/probe-structured-output.js"
   },
   "engines": { "node": ">=20" },
   "keywords": ["ai-agent", "coding-agent", "codex", "claude-code", "gemini-cli", "opencode", "mcp", "agents-md", "developer-tools"],
