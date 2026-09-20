@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
 
@@ -15,9 +16,9 @@ export const NESTED_PROBE_SPECS = {
 export function createNestedInstructionFixture(baseDir, agentId) {
   const spec = NESTED_PROBE_SPECS[agentId];
   if (!spec) throw new Error(`No nested-instruction probe adapter for ${agentId}`);
-
-  const rootMarker = `CANIAGENT_ROOT_${agentId.replaceAll("-", "_").toUpperCase()}`;
-  const nestedMarker = `CANIAGENT_NESTED_${agentId.replaceAll("-", "_").toUpperCase()}`;
+  const suffix = agentId.replaceAll("-", "_").toUpperCase();
+  const rootMarker = `CANIAGENT_ROOT_${suffix}`;
+  const nestedMarker = `CANIAGENT_NESTED_${suffix}`;
   const workspace = path.join(baseDir, "workspace");
   const nested = path.join(workspace, "nested");
   fs.mkdirSync(nested, { recursive: true });
@@ -36,13 +37,7 @@ export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
 }
 
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
-  const result = spawnSync(command, args, {
-    cwd,
-    env,
-    encoding: "utf8",
-    timeout,
-    shell: process.platform === "win32"
-  });
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   const outcome = classifyProbeExecution(result);
   return {
     command: redactProbeOutput([command, ...args].join(" ")),
@@ -70,7 +65,6 @@ function main() {
   const matrix = loadMatrix();
   const observedAt = new Date().toISOString();
   const results = [];
-
   for (const agent of matrix.agents) {
     const spec = NESTED_PROBE_SPECS[agent.id];
     if (!spec) continue;
@@ -79,11 +73,8 @@ function main() {
       const home = path.join(temp, "home");
       fs.mkdirSync(home, { recursive: true });
       const fixture = createNestedInstructionFixture(temp, agent.id);
-      const prompt = `Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.`;
-      const execution = run(agent.command, spec.args(prompt), {
-        cwd: fixture.nested,
-        env: isolatedEnvironment(home)
-      });
+      const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.";
+      const execution = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env: isolatedEnvironment(home) });
       const combined = `${execution.stdout}\n${execution.stderr}`;
       results.push({
         agent: agent.id,
@@ -98,17 +89,7 @@ function main() {
       fs.rmSync(temp, { recursive: true, force: true });
     }
   }
-
-  const output = {
-    schemaVersion: 1,
-    probe: "nested-instructions",
-    observedAt,
-    platform: process.platform,
-    arch: process.arch,
-    node: process.version,
-    results
-  };
-
+  const output = { schemaVersion: 1, probe: "nested-instructions", observedAt, platform: process.platform, arch: process.arch, node: process.version, results };
   const outputArg = process.argv.find((arg) => arg.startsWith("--output="));
   if (outputArg) {
     const value = outputArg.slice("--output=".length);
@@ -122,6 +103,4 @@ function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  main();
-}
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main();
