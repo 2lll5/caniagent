@@ -5,7 +5,7 @@ import path from "node:path";
 import { loadMatrix, getAgent, getFeature, featureRows, listCategories, packageVersion } from "./core.js";
 import { scanRepository, compatibilityFindings } from "./detect.js";
 import { renderMatrix, renderFindings, icon } from "./format.js";
-import { migrationDetections } from "./migration.js";
+import { migrationDetections, migrationSuggestions } from "./migration.js";
 import { buildSarif } from "./sarif.js";
 
 const VERSION = packageVersion;
@@ -125,15 +125,21 @@ try {
     const targetPath = path.resolve(validatePositionals(rest, ["--agent", "--from", "--format", "--output"], 1)[0] ?? ".");
     const detections = migrationDetections(scanRepository(targetPath), source);
     const findings = compatibilityFindings(matrix, detections, target);
+    const suggestions = migrationSuggestions(matrix, detections, source, target);
     const format = has(rest, "--json") ? "json" : (valueOf(rest, "--format") ?? "text");
     const outputPath = valueOf(rest, "--output");
     if (!new Set(["text", "json", "sarif"]).has(format)) throw new Error(`Unsupported format: ${format}`);
 
-    if (format === "json") emit(stringify({ path: targetPath, source: sourceAgent ?? null, target: agent, detections, findings }), outputPath);
+    if (format === "json") emit(stringify({ path: targetPath, source: sourceAgent ?? null, target: agent, detections, findings, suggestions }), outputPath);
     else if (format === "sarif") emit(stringify(buildSarif({ matrix, targetAgent: agent, root: targetPath, findings })), outputPath);
     else {
-      if (sourceAgent) console.log(`Migration: ${sourceAgent.name} → ${agent.name}`);
-      emit(renderFindings(agent.name, findings) + "\n", outputPath);
+      let text = sourceAgent ? `Migration: ${sourceAgent.name} → ${agent.name}\n` : "";
+      text += renderFindings(agent.name, findings) + "\n";
+      if (suggestions.length) {
+        text += "\nSuggested file translations:\n";
+        for (const suggestion of suggestions) text += `  ${suggestion.from} → ${suggestion.to}\n`;
+      }
+      emit(text, outputPath);
     }
   } else if (command === "categories") {
     validateOptions(rest, []); validatePositionals(rest);

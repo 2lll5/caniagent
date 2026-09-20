@@ -16,7 +16,8 @@ CanIAgent is intentionally small at v0.1: a trustworthy data model, useful CLI, 
 SARIF output and a reusable GitHub Action shipped in v0.2.
 
 - `caniagent check --from claude-code --agent codex` — shipped; scopes findings to conventions native to the source agent.
-- Suggested file translations (`CLAUDE.md` → `AGENTS.md`, config hints, MCP scope differences).
+- Suggested instruction-file translations — shipped for evidence-backed project/nested instruction conventions.
+- Suggested config hints and MCP scope differences.
 
 ## v0.4 — ecosystem
 
