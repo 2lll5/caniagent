@@ -1,4 +1,6 @@
+import path from "node:path";
 import readline from "node:readline";
+import { fileURLToPath } from "node:url";
 
 export const TOOL_NAME = "caniagent_echo";
 
@@ -33,18 +35,12 @@ export function handleMcpMessage(message) {
     };
   }
   if (message.method === "tools/call") {
-    if (message.params?.name !== TOOL_NAME) {
-      return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
-    }
+    if (message.params?.name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
     const text = message.params?.arguments?.text;
-    if (typeof text !== "string") {
-      return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "text must be a string" } };
-    }
+    if (typeof text !== "string") return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "text must be a string" } };
     return { jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }], isError: false } };
   }
-  if (message.id !== undefined) {
-    return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } };
-  }
+  if (message.id !== undefined) return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } };
   return null;
 }
 
@@ -61,4 +57,4 @@ function main() {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main();
