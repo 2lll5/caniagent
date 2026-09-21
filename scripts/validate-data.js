@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 const file = path.resolve("data/matrix.json");
-const matrix = JSON.parse(fs.readFileSync(file, "utf8"));
+const publishedFile = path.resolve("docs/matrix.json");
+const sourceText = fs.readFileSync(file, "utf8");
+const matrix = JSON.parse(sourceText);
 const validStatuses = new Set(["yes", "partial", "experimental", "unknown", "no"]);
 const agentIds = new Set();
 const featureIds = new Set();
@@ -50,8 +52,17 @@ for (const feature of matrix.features ?? []) {
   }
 }
 
+if (!fs.existsSync(publishedFile)) {
+  errors.push("docs/matrix.json is missing; run npm run site:data");
+} else {
+  const publishedText = fs.readFileSync(publishedFile, "utf8");
+  if (publishedText !== sourceText) {
+    errors.push("docs/matrix.json is out of sync with data/matrix.json; run npm run site:data");
+  }
+}
+
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-console.log(`matrix valid: ${matrix.agents.length} agents × ${matrix.features.length} features`);
+console.log(`matrix valid: ${matrix.agents.length} agents × ${matrix.features.length} features; published copy synchronized`);
