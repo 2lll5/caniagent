@@ -54,17 +54,13 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
   if (!rootStat.isDirectory()) throw new Error(`Scan path is not a directory: ${resolvedRoot}`);
 
   const found = [];
-  let visited = 0;
+  let visitedFiles = 0;
   let fileLimitExceeded = false;
   let depthLimitExceeded = false;
 
   function walk(dir, depth) {
     if (depth > maxDepth) {
       depthLimitExceeded = true;
-      return;
-    }
-    if (visited >= maxFiles) {
-      fileLimitExceeded = true;
       return;
     }
     let entries;
@@ -77,11 +73,6 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
     }
 
     for (const entry of entries) {
-      if (visited >= maxFiles) {
-        fileLimitExceeded = true;
-        break;
-      }
-      visited += 1;
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory() && SKIP.has(entry.name)) continue;
       const full = path.join(dir, entry.name);
@@ -91,6 +82,12 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
         walk(full, depth + 1);
         continue;
       }
+
+      if (visitedFiles >= maxFiles) {
+        fileLimitExceeded = true;
+        break;
+      }
+      visitedFiles += 1;
 
       for (const rule of RULES) {
         if (rule.match(rel, entry.name, full)) {
