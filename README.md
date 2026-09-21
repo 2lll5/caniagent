@@ -53,7 +53,7 @@ node src/cli.js check . --agent gemini-cli --format json
 node src/cli.js check . --agent codex --format sarif --output caniagent.sarif
 ```
 
-The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and `.mcp.json`. Generic agent settings files are intentionally not treated as instruction files because their presence alone does not prove use of a matrix capability. It reports native conventions and migration attention points; it does **not** rewrite your repository.
+The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and MCP declarations in `.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, and `opencode.json`. Native MCP settings files are only reported when they actually declare MCP configuration; generic agent settings files are intentionally not treated as instruction files because their presence alone does not prove use of a matrix capability. It reports native conventions and migration attention points; it does **not** rewrite your repository.
 
 ## Current matrix
 
@@ -116,14 +116,18 @@ This makes CanIAgent usable from websites, CI jobs, editor extensions and other 
 
 ## Probe harness
 
-Run:
+Run the inventory probe or a behavior-specific fixture:
 
 ```bash
 npm run probe
-npm run probe -- --output=.caniagent/probe.json
+npm run probe:nested
+npm run probe:mcp
+npm run probe:skills
+npm run probe:structured
+npm run probe:resume
 ```
 
-The v0.1 probe records which supported agent CLIs are installed, their versions, and their help output. The next milestone adds behavior fixtures for instruction precedence, MCP, skills, structured output and session resume.
+The inventory probe records which supported agent CLIs are installed, their versions, and their help output. Behavior fixtures are also shipped for nested instruction precedence, MCP stdio, skill discovery, structured output, and session resume. A shipped fixture is **not** evidence that every agent supports the behavior: matrix statuses change only after reproducible provider-backed results meet the evidence policy. Remaining nested-instruction and Agent Skills evidence work is tracked in issues #2 and #4.
 
 Probe output is intentionally local by default. Do not publish logs that contain private paths or credentials.
 
