@@ -20,6 +20,8 @@ Migration mode suggests target instruction filenames when the matrix has documen
 
 When migration mode detects a source-native MCP config that is foreign to the target, it can suggest the target's documented project configuration destination. For example, Claude Code's `.mcp.json` can map to Gemini CLI's `.gemini/settings.json`. The suggestion is a destination hint only: MCP configuration schemas differ between agents, so CanIAgent does not claim the source file can be copied verbatim or automatically rewrite server definitions.
 
+The scanner recognizes Claude Code's dedicated `.mcp.json` directly. For general project configuration files, it only classifies the file as MCP when an MCP declaration is actually present: `[mcp_servers...]` in `.codex/config.toml`, a top-level `mcpServers` key in `.gemini/settings.json`, or a top-level `mcp` key in `opencode.json`. A general config file with no MCP declaration is not treated as MCP migration evidence. Malformed JSON is likewise not inferred as an MCP config.
+
 MCP hints are emitted only when the target's MCP matrix entry is documented `yes` and contains URL evidence. The currently recognized project destinations are `.codex/config.toml`, `.mcp.json`, `.gemini/settings.json`, and `opencode.json`; they correspond to the project configuration conventions documented by each agent's MCP/configuration guidance.
 
 Suggestions are advisory: CanIAgent does not rename, copy, or rewrite files. Each JSON suggestion includes the matrix evidence note and source URLs used to justify the target convention. It deliberately emits no suggestion for `unknown`, `partial`, or undocumented target support. Skills translations remain intentionally unsuggested where path/scope semantics need more specific evidence.
