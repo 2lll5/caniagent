@@ -30,6 +30,26 @@ jobs:
           node src/cli.js check . --agent claude-code --format sarif --output "$RUNNER_TEMP/caniagent.sarif"
           node -e "const fs=require('fs'); const s=JSON.parse(fs.readFileSync(process.argv[1])); if(s.version!=='2.1.0') process.exit(1)" "$RUNNER_TEMP/caniagent.sarif"
 
+  package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+      - name: Pack npm artifact
+        shell: bash
+        run: npm pack --json > "$RUNNER_TEMP/caniagent-pack.json"
+      - name: Install and run packed CLI
+        shell: bash
+        run: |
+          tarball=$(node -e "const p=require(process.argv[1]); process.stdout.write(p[0].filename)" "$RUNNER_TEMP/caniagent-pack.json")
+          mkdir "$RUNNER_TEMP/caniagent-package-smoke"
+          cd "$RUNNER_TEMP/caniagent-package-smoke"
+          npm init -y >/dev/null
+          npm install "$GITHUB_WORKSPACE/$tarball"
+          npx --no-install caniagent matrix --search mcp
+
   action-smoke:
     strategy:
       matrix:
