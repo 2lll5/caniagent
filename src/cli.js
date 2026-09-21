@@ -131,7 +131,7 @@ try {
     if (!new Set(["text", "json", "sarif"]).has(format)) throw new Error(`Unsupported format: ${format}`);
 
     if (format === "json") emit(stringify({ path: targetPath, source: sourceAgent ?? null, target: agent, detections, findings, suggestions }), outputPath);
-    else if (format === "sarif") emit(stringify(buildSarif({ matrix, targetAgent: agent, root: targetPath, findings })), outputPath);
+    else if (format === "sarif") emit(stringify(buildSarif({ matrix, targetAgent: agent, root: targetPath, findings, suggestions })), outputPath);
     else {
       let text = sourceAgent ? `Migration: ${sourceAgent.name} → ${agent.name}\n` : "";
       text += renderFindings(agent.name, findings) + "\n";
