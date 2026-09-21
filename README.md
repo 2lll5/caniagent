@@ -95,7 +95,7 @@ jobs:
           agent: codex
 ```
 
-Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency. When updating CanIAgent or checkout, review the new revision and replace the pinned SHA deliberately.
+Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency. Repository CI smoke-tests the composite action on GitHub-hosted Ubuntu, Windows, and macOS runners. When updating CanIAgent or checkout, review the new revision and replace the pinned SHA deliberately.
 
 ## Data API
 
