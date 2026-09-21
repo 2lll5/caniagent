@@ -18,10 +18,12 @@ The current adapters cover these documented paths:
 | --- | --- | --- |
 | Codex | `.agents/skills/<name>/SKILL.md` | `~/.agents/skills/<name>/SKILL.md` |
 | Claude Code | `.claude/skills/<name>/SKILL.md` | not encoded yet |
+| Gemini CLI | `.gemini/skills/<name>/SKILL.md` | `~/.gemini/skills/<name>/SKILL.md` |
 | OpenCode | `.opencode/skills/<name>/SKILL.md` | `~/.config/opencode/skills/<name>/SKILL.md` |
-| Gemini CLI | unknown | unknown |
 
-The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code user scope is deliberately not guessed here until its current path is independently evidenced for this probe. Gemini CLI remains `unknown`: CanIAgent does not encode a `SKILL.md` discovery path without current evidence. Missing adapters must not be interpreted as unsupported behavior.
+Gemini CLI now documents Agent Skills discovery at both `.gemini/skills/` and the interoperable `.agents/skills/` alias for workspace and user scopes. The probe uses the Gemini-native `.gemini/skills/` path and `--approval-mode=yolo` so the documented activation-consent step can complete in non-interactive `-p` mode. This flag is confined to the temporary probe workspace and isolated home.
+
+The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code user scope is deliberately not guessed here until its current path is independently evidenced for this probe. Missing adapters must not be interpreted as unsupported behavior.
 
 ## Isolation and evidence
 
@@ -31,4 +33,4 @@ Each result records the agent version, OS/platform metadata, exact redacted comm
 
 A marker observed after a successful execution is `pass`. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
 
-Do not update `data/matrix.json` from a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.
+Do not update `data/matrix.json` from documentation alone or a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.

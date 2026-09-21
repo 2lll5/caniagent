@@ -8,14 +8,19 @@ import { SKILL_PROBE_SPECS, classifySkillOutput, createSkillFixture } from "../s
 test("skill probe adapters use documented project discovery conventions", () => {
   assert.deepEqual(SKILL_PROBE_SPECS.codex.projectPath, [".agents", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS["claude-code"].projectPath, [".claude", "skills"]);
+  assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].projectPath, [".gemini", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS.opencode.projectPath, [".opencode", "skills"]);
-  assert.equal(SKILL_PROBE_SPECS["gemini-cli"], undefined);
 });
 
 test("skill probe adapters only encode documented isolated user discovery conventions", () => {
   assert.deepEqual(SKILL_PROBE_SPECS.codex.userPath, [".agents", "skills"]);
   assert.equal(SKILL_PROBE_SPECS["claude-code"].userPath, undefined);
+  assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].userPath, [".gemini", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS.opencode.userPath, [".config", "opencode", "skills"]);
+});
+
+test("Gemini skill probe auto-approves activation in non-interactive mode", () => {
+  assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].args("probe"), ["--approval-mode=yolo", "-p", "probe"]);
 });
 
 test("project skill fixture contains a deterministic marker only inside SKILL.md", () => {
@@ -38,6 +43,17 @@ test("user skill fixture stays inside the isolated home", () => {
     assert.equal(fixture.discoveryPath, `~/.config/opencode/skills/${fixture.skillName}/`);
     assert.equal(path.relative(path.join(temp, "home"), fixture.skillDir).startsWith(".."), false);
     assert.equal(fs.existsSync(path.join(fixture.skillDir, "SKILL.md")), true);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("Gemini user skill fixture stays inside the isolated home", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-gemini-skill-user-probe-test-"));
+  try {
+    const fixture = createSkillFixture(temp, "gemini-cli", "user");
+    assert.equal(fixture.discoveryPath, `~/.gemini/skills/${fixture.skillName}/`);
+    assert.equal(path.relative(path.join(temp, "home"), fixture.skillDir).startsWith(".."), false);
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }

@@ -4,8 +4,9 @@ import path from "node:path";
 const instructionFeature = (rel) => rel.includes("/") ? "nested-instructions" : "project-instructions";
 
 function skillNativeAgents(rel) {
-  if (/(^|\/)\.agents\/skills\//.test(rel)) return ["codex", "opencode"];
+  if (/(^|\/)\.agents\/skills\//.test(rel)) return ["codex", "gemini-cli", "opencode"];
   if (/(^|\/)\.claude\/skills\//.test(rel)) return ["claude-code", "opencode"];
+  if (/(^|\/)\.gemini\/skills\//.test(rel)) return ["gemini-cli"];
   if (/(^|\/)\.opencode\/skills\//.test(rel)) return ["opencode"];
   return [];
 }
@@ -16,7 +17,7 @@ const RULES = [
   { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: instructionFeature, native: ["claude-code"], label: "CLAUDE.md" },
   { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: instructionFeature, native: ["gemini-cli"], label: "GEMINI.md" },
   { match: (rel) => /(^|\/)\.mcp\.json$/.test(rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
-  { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.opencode)\/skills\//.test(rel), feature: "skills", native: skillNativeAgents, label: "SKILL.md" }
+  { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.gemini|\.opencode)\/skills\//.test(rel), feature: "skills", native: skillNativeAgents, label: "SKILL.md" }
 ];
 
 const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next", "target", ".venv", "venv"]);

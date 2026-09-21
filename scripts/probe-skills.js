@@ -9,6 +9,7 @@ import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput
 export const SKILL_PROBE_SPECS = {
   codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
   "claude-code": { projectPath: [".claude", "skills"], versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
+  "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], args: (prompt) => ["--approval-mode=yolo", "-p", prompt] },
   opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
 };
 
