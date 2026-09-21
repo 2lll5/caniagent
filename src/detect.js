@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const instructionFeature = (rel) => rel.includes("/") ? "nested-instructions" : "project-instructions";
+const instructionFeature = (rel) => rel === ".claude/CLAUDE.md" || !rel.includes("/") ? "project-instructions" : "nested-instructions";
 
 function skillNativeAgents(rel) {
   if (/(^|\/)\.agents\/skills\//.test(rel)) return ["codex", "gemini-cli", "opencode"];
