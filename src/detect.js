@@ -82,6 +82,7 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
         break;
       }
       visited += 1;
+      if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory() && SKIP.has(entry.name)) continue;
       const full = path.join(dir, entry.name);
       const rel = path.relative(resolvedRoot, full).replaceAll(path.sep, "/");
