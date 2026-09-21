@@ -50,6 +50,17 @@ test("scanner classifies nested instruction files separately", () => {
   assert.equal(nested?.nativeCount, 1);
 });
 
+test("scanner treats .claude/CLAUDE.md as project instructions", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-claude-project-"));
+  fs.mkdirSync(path.join(dir, ".claude"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".claude", "CLAUDE.md"), "# project rules");
+
+  const found = scanRepository(dir);
+  assert.deepEqual(found.map(({ path: file, feature, native }) => ({ path: file, feature, native })), [
+    { path: ".claude/CLAUDE.md", feature: "project-instructions", native: ["claude-code"] }
+  ]);
+});
+
 test("scanner finds deeply nested instruction files by default", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-deep-default-"));
   const segments = Array.from({ length: 10 }, (_, index) => `level-${index + 1}`);
