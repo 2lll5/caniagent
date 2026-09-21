@@ -10,6 +10,10 @@ inputs:
     description: Target coding agent (codex, claude-code, gemini-cli, opencode)
     required: true
     default: codex
+  from:
+    description: Optional source coding agent; scopes findings to conventions native to that agent
+    required: false
+    default: ""
   path:
     description: Repository path to scan
     required: false
@@ -44,8 +48,13 @@ runs:
         CANIAGENT_SARIF: ${{ runner.temp }}/caniagent.sarif
         CANIAGENT_PATH: ${{ inputs.path }}
         CANIAGENT_AGENT: ${{ inputs.agent }}
+        CANIAGENT_FROM: ${{ inputs.from }}
       run: |
-        node "$GITHUB_ACTION_PATH/src/cli.js" check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF"
+        args=(check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF")
+        if [[ -n "$CANIAGENT_FROM" ]]; then
+          args+=(--from "$CANIAGENT_FROM")
+        fi
+        node "$GITHUB_ACTION_PATH/src/cli.js" "${args[@]}"
         echo "sarif=$CANIAGENT_SARIF" >> "$GITHUB_OUTPUT"
 
     - name: Upload SARIF
