@@ -10,8 +10,7 @@ const validator = fileURLToPath(new URL("../scripts/validate-data.js", import.me
 
 function validate(evidence) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-validate-"));
-  fs.mkdirSync(path.join(dir, "data"));
-  fs.writeFileSync(path.join(dir, "data", "matrix.json"), JSON.stringify({
+  const matrix = {
     agents: [{ id: "test-agent" }],
     features: [{
       id: "test-feature",
@@ -22,7 +21,12 @@ function validate(evidence) {
         }
       }
     }]
-  }));
+  };
+  const matrixText = JSON.stringify(matrix);
+  fs.mkdirSync(path.join(dir, "data"));
+  fs.mkdirSync(path.join(dir, "docs"));
+  fs.writeFileSync(path.join(dir, "data", "matrix.json"), matrixText);
+  fs.writeFileSync(path.join(dir, "docs", "matrix.json"), matrixText);
   return spawnSync(process.execPath, [validator], { cwd: dir, encoding: "utf8" });
 }
 
