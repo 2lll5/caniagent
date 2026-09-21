@@ -11,12 +11,32 @@ function skillNativeAgents(rel) {
   return [];
 }
 
+function jsonHasKey(file, key) {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, "utf8"));
+    return value !== null && typeof value === "object" && Object.hasOwn(value, key);
+  } catch {
+    return false;
+  }
+}
+
+function codexConfigHasMcp(file) {
+  try {
+    return /^\s*\[mcp_servers(?:\.|\])/m.test(fs.readFileSync(file, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
 const RULES = [
   { match: (rel, name) => /^AGENTS\.md$/.test(name), feature: instructionFeature, native: ["codex", "opencode"], label: "AGENTS.md" },
   { match: (rel, name) => /^AGENTS\.override\.md$/.test(name), feature: instructionFeature, native: ["codex"], label: "AGENTS.override.md" },
   { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: instructionFeature, native: ["claude-code"], label: "CLAUDE.md" },
   { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: instructionFeature, native: ["gemini-cli"], label: "GEMINI.md" },
   { match: (rel) => /(^|\/)\.mcp\.json$/.test(rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
+  { match: (rel, name, full) => rel === ".codex/config.toml" && codexConfigHasMcp(full), feature: "mcp", native: ["codex"], label: ".codex/config.toml" },
+  { match: (rel, name, full) => rel === ".gemini/settings.json" && jsonHasKey(full, "mcpServers"), feature: "mcp", native: ["gemini-cli"], label: ".gemini/settings.json" },
+  { match: (rel, name, full) => rel === "opencode.json" && jsonHasKey(full, "mcp"), feature: "mcp", native: ["opencode"], label: "opencode.json" },
   { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.gemini|\.opencode)\/skills\//.test(rel), feature: "skills", native: skillNativeAgents, label: "SKILL.md" }
 ];
 
@@ -72,7 +92,7 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
       }
 
       for (const rule of RULES) {
-        if (rule.match(rel, entry.name)) {
+        if (rule.match(rel, entry.name, full)) {
           const feature = typeof rule.feature === "function" ? rule.feature(rel) : rule.feature;
           const native = typeof rule.native === "function" ? rule.native(rel) : rule.native;
           found.push({ path: rel, feature, native, label: rule.label });
