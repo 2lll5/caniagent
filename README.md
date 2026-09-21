@@ -165,7 +165,7 @@ npm run check
 npm run site:data
 ```
 
-CanIAgent has **zero runtime dependencies** and supports Node.js 20+.
+CanIAgent has **zero runtime dependencies** and supports Node.js 20+. CI also packs the npm artifact, installs that tarball into a clean temporary project, and runs the installed `caniagent` binary so missing publish files are caught before release.
 
 ## Contributing
 
