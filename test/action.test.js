@@ -10,8 +10,17 @@ test("passes Action inputs through environment variables instead of shell interp
 
   assert.match(action, /CANIAGENT_PATH: \$\{\{ inputs\.path \}\}/);
   assert.match(action, /CANIAGENT_AGENT: \$\{\{ inputs\.agent \}\}/);
+  assert.match(action, /CANIAGENT_FROM: \$\{\{ inputs\.from \}\}/);
   assert.doesNotMatch(runBlock, /\$\{\{\s*inputs\./);
-  assert.match(runBlock, /check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT"/);
+  assert.match(runBlock, /args=\(check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT" --format sarif --output "\$CANIAGENT_SARIF"\)/);
+  assert.match(runBlock, /args\+=\(--from "\$CANIAGENT_FROM"\)/);
+  assert.match(runBlock, /node "\$GITHUB_ACTION_PATH\/src\/cli\.js" "\$\{args\[@\]\}"/);
+});
+
+test("source-agent Action input is optional and defaults to unscoped checks", () => {
+  assert.match(action, /  from:\n    description:[^\n]+\n    required: false\n    default: ""/);
+  const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
+  assert.match(runBlock, /if \[\[ -n "\$CANIAGENT_FROM" \]\]; then/);
 });
 
 test("validates upload-sarif instead of silently treating typos as false", () => {
