@@ -1,0 +1,43 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { scanRepository } from "../src/detect.js";
+
+function fixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-config-"));
+  fs.mkdirSync(path.join(dir, ".codex"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".gemini"), { recursive: true });
+  return dir;
+}
+
+test("scanner recognizes documented MCP declarations in native project configs", () => {
+  const dir = fixture();
+  fs.writeFileSync(path.join(dir, ".codex", "config.toml"), '[mcp_servers.docs]\ncommand = "example"\n');
+  fs.writeFileSync(path.join(dir, ".gemini", "settings.json"), JSON.stringify({ mcpServers: { docs: { command: "example" } } }));
+  fs.writeFileSync(path.join(dir, "opencode.json"), JSON.stringify({ mcp: { docs: { type: "local", command: ["example"] } } }));
+
+  assert.deepEqual(scanRepository(dir).map(({ path: file, native }) => ({ path: file, native })), [
+    { path: ".codex/config.toml", native: ["codex"] },
+    { path: ".gemini/settings.json", native: ["gemini-cli"] },
+    { path: "opencode.json", native: ["opencode"] }
+  ]);
+});
+
+test("scanner does not classify general native config files as MCP", () => {
+  const dir = fixture();
+  fs.writeFileSync(path.join(dir, ".codex", "config.toml"), 'model = "example"\n');
+  fs.writeFileSync(path.join(dir, ".gemini", "settings.json"), JSON.stringify({ theme: "default" }));
+  fs.writeFileSync(path.join(dir, "opencode.json"), JSON.stringify({ model: "example" }));
+
+  assert.deepEqual(scanRepository(dir), []);
+});
+
+test("scanner does not infer MCP support from malformed JSON config", () => {
+  const dir = fixture();
+  fs.writeFileSync(path.join(dir, ".gemini", "settings.json"), '{ "mcpServers":');
+  fs.writeFileSync(path.join(dir, "opencode.json"), '{ "mcp":');
+
+  assert.deepEqual(scanRepository(dir), []);
+});
