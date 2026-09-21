@@ -4,12 +4,14 @@ CanIAgent is intentionally small at v0.1: a trustworthy data model, useful CLI, 
 
 ## v0.2 — behavior probes
 
-- Nested instruction precedence fixtures for all four agents.
-- MCP stdio echo-server probe.
-- Skill discovery fixture.
-- Structured-output contract probe.
-- Resume/session probe.
-- Cross-platform GitHub Actions probe runners where authentication-free behavior permits it.
+The probe harnesses below are shipped. A shipped harness does **not** mean every compatibility claim has been behavior-verified: provider-backed runs still need reproducible evidence before matrix statuses change. Open probe issues track the remaining evidence work.
+
+- Nested instruction precedence fixture — harness shipped for all four agents; reproducible provider-backed evidence is still tracked in issue #2.
+- MCP stdio echo-server probe — shipped.
+- Skill discovery fixture — harness shipped for Codex, Claude Code, Gemini CLI, and OpenCode; remaining behavior evidence is tracked in issue #4.
+- Structured-output contract probe — shipped.
+- Resume/session probe — shipped.
+- Cross-platform GitHub Actions probe runners where authentication-free behavior permits it — pending.
 
 ## v0.3 — migration intelligence
 
