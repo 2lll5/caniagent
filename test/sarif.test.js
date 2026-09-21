@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { loadMatrix, getAgent, packageVersion } from "../src/core.js";
 import { compatibilityFindings } from "../src/detect.js";
+import { migrationSuggestions } from "../src/migration.js";
 import { buildSarif } from "../src/sarif.js";
 
 const matrix = loadMatrix();
@@ -25,6 +26,24 @@ test("SARIF emits migration attention for foreign conventions", () => {
   assert.equal(sarif.runs[0].results.length, 1);
   assert.equal(sarif.runs[0].results[0].ruleId, "caniagent/project-instructions/foreign-convention");
   assert.equal(sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri, "CLAUDE.md");
+});
+
+test("SARIF includes evidence-backed migration destinations in existing diagnostics", () => {
+  const detections = [
+    { path: "packages/api/CLAUDE.md", feature: "nested-instructions", native: ["claude-code"], label: "CLAUDE.md" }
+  ];
+  const findings = compatibilityFindings(matrix, detections, "codex");
+  const suggestions = migrationSuggestions(matrix, detections, "claude-code", "codex");
+  const sarif = buildSarif({
+    matrix,
+    targetAgent: getAgent(matrix, "codex"),
+    root: "/tmp/repo",
+    findings,
+    suggestions
+  });
+
+  assert.equal(sarif.runs[0].results.length, 1);
+  assert.match(sarif.runs[0].results[0].message.text, /Suggested target destination: packages\/api\/AGENTS\.md\./);
 });
 
 test("SARIF artifact URIs escape reserved path characters", () => {

@@ -28,9 +28,10 @@ function ruleId(featureId, kind) {
   return `caniagent/${featureId}/${kind}`;
 }
 
-export function buildSarif({ matrix, targetAgent, root, findings }) {
+export function buildSarif({ matrix, targetAgent, root, findings, suggestions = [] }) {
   const rules = new Map();
   const results = [];
+  const suggestionBySource = new Map(suggestions.map((suggestion) => [suggestion.from, suggestion]));
 
   function addRule(id, name, description, defaultLevel = "warning") {
     if (!rules.has(id)) {
@@ -68,11 +69,13 @@ export function buildSarif({ matrix, targetAgent, root, findings }) {
         `${finding.featureName}: configuration convention may need migration`
       );
       for (const file of finding.foreign) {
+        const suggestion = suggestionBySource.get(file);
+        const migrationHint = suggestion ? ` Suggested target destination: ${suggestion.to}.` : "";
         addResult({
           id: foreignId,
           level: "warning",
           file,
-          message: `${file} is not a native ${targetAgent.name} convention. Target support for ${finding.featureName}: ${finding.status}. ${finding.note}`
+          message: `${file} is not a native ${targetAgent.name} convention. Target support for ${finding.featureName}: ${finding.status}. ${finding.note}${migrationHint}`
         });
       }
     }
