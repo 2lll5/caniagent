@@ -22,12 +22,13 @@ function readConfig(file, rel) {
 
 function jsonHasKey(file, key, rel) {
   const text = readConfig(file, rel);
+  let value;
   try {
-    const value = JSON.parse(text);
-    return value !== null && typeof value === "object" && Object.hasOwn(value, key);
+    value = JSON.parse(text);
   } catch {
-    return false;
+    throw new Error(`Cannot parse scan config as JSON: ${rel}`);
   }
+  return value !== null && typeof value === "object" && Object.hasOwn(value, key);
 }
 
 function codexConfigHasMcp(file, rel) {
