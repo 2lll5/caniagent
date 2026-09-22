@@ -34,12 +34,18 @@ test("scanner does not classify general native config files as MCP", () => {
   assert.deepEqual(scanRepository(dir), []);
 });
 
-test("scanner does not infer MCP support from malformed JSON config", () => {
-  const dir = fixture();
-  fs.writeFileSync(path.join(dir, ".gemini", "settings.json"), '{ "mcpServers":');
-  fs.writeFileSync(path.join(dir, "opencode.json"), '{ "mcp":');
-
-  assert.deepEqual(scanRepository(dir), []);
+test("scanner reports malformed native JSON configs instead of hiding possible MCP detections", () => {
+  for (const [file, content] of [
+    [".gemini/settings.json", '{ "mcpServers":'],
+    ["opencode.json", '{ "mcp":']
+  ]) {
+    const dir = fixture();
+    fs.writeFileSync(path.join(dir, file), content);
+    assert.throws(() => scanRepository(dir), (error) => {
+      assert.equal(error.message, `Cannot parse scan config as JSON: ${file}`);
+      return true;
+    });
+  }
 });
 
 test("scanner reports unreadable native configs instead of hiding MCP detections", (t) => {
