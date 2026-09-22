@@ -84,6 +84,7 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
         if (fileLimitExceeded) break;
         continue;
       }
+      if (!entry.isFile()) continue;
 
       if (visitedFiles >= maxFiles) {
         fileLimitExceeded = true;
