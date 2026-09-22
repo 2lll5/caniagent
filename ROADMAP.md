@@ -30,7 +30,7 @@ SARIF output and a reusable GitHub Action shipped in v0.2.
 - Version-range assertions, not only "current".
 - Historical compatibility snapshots.
 - Badges: "Works with Codex", "Works with Claude Code", etc.
-- Public JSON endpoint from GitHub Pages.
+- Public JSON endpoint from GitHub Pages — shipped; see `docs/DATA_API.md`.
 
 ## Non-goals
 
