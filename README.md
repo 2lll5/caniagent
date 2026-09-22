@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: 2lll5/caniagent@b3635be188a340f264cf5d99477dfdfe3784c3bd # reviewed main commit
+      - uses: 2lll5/caniagent@5d34e6da803955e7755a8bbcd266edf6c07d0f91 # v0.2.0
         with:
           agent: codex
 ```
