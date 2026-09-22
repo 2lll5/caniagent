@@ -43,6 +43,9 @@ const RULES = [
 const SKIP = new Set([".git", "node_modules", "vendor", "dist", "build", ".next", "target", ".venv", "venv"]);
 
 export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
+  if (!Number.isInteger(maxDepth) || maxDepth < 0) throw new TypeError("maxDepth must be a non-negative integer");
+  if (!Number.isInteger(maxFiles) || maxFiles < 0) throw new TypeError("maxFiles must be a non-negative integer");
+
   const resolvedRoot = path.resolve(root);
   let rootStat;
   try {
