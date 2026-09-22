@@ -34,6 +34,7 @@ export function migrationSuggestions(matrix, detections, sourceAgentId, targetAg
   if (targetInstruction && instructionEvidence) {
     suggestions.push(...detections
       .filter((item) => ["project-instructions", "nested-instructions"].includes(item.feature))
+      .filter((item) => item.label !== "AGENTS.override.md")
       .filter((item) => item.native.includes(sourceAgentId) && !item.native.includes(targetAgentId))
       .map((item) => {
         const directory = path.posix.dirname(item.path);
