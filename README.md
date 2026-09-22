@@ -91,14 +91,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: 2lll5/caniagent@5d34e6da803955e7755a8bbcd266edf6c07d0f91 # v0.2.0
+      - uses: 2lll5/caniagent@8da277ea5e4e5cd30df9a00304e20a9ca9342e51 # post-v0.2.0; includes fail-on
         with:
           agent: codex
 ```
 
 Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency. Repository CI smoke-tests the composite action on GitHub-hosted Ubuntu, Windows, and macOS runners. When updating CanIAgent or checkout, review the new revision and replace the pinned SHA deliberately.
 
-To enforce compatibility in CI, use `--fail-on warning` in the CLI or the Action input `fail-on: warning` (requires a revision containing this input; the older pinned example above is advisory). `error` fails only for documented unsupported capabilities. The default, `none`, keeps checks advisory. The report is written before a threshold failure, and the Action uploads it before enforcing the threshold. Every Action invocation produces its own report path.
+To enforce compatibility in CI, use `--fail-on warning` in the CLI or the Action input `fail-on: warning`. `error` fails only for documented unsupported capabilities. The default, `none`, keeps checks advisory. The report is written before a threshold failure, and the Action uploads it before enforcing the threshold. Every Action invocation produces its own report path.
 
 | Threshold | Findings that fail the check |
 |---|---|
