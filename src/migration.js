@@ -26,16 +26,16 @@ function evidenceFor(feature, targetAgentId) {
 export function migrationSuggestions(matrix, detections, sourceAgentId, targetAgentId) {
   if (!sourceAgentId || !targetAgentId || sourceAgentId === targetAgentId) return [];
   const target = matrix.agents.find((agent) => agent.id === targetAgentId);
-  const instructionFeature = matrix.features.find((item) => item.id === "project-instructions");
-  const instructionEvidence = evidenceFor(instructionFeature, targetAgentId);
   const targetInstruction = target?.instructions?.[0];
   const suggestions = [];
 
-  if (targetInstruction && instructionEvidence) {
+  if (targetInstruction) {
     suggestions.push(...detections
       .filter((item) => ["project-instructions", "nested-instructions"].includes(item.feature))
       .filter((item) => item.native.includes(sourceAgentId) && !item.native.includes(targetAgentId))
-      .map((item) => {
+      .flatMap((item) => {
+        const instructionEvidence = evidenceFor(matrix.features.find((feature) => feature.id === item.feature), targetAgentId);
+        if (!instructionEvidence) return [];
         const directory = path.posix.dirname(item.path);
         const targetPath = item.feature === "project-instructions"
           ? targetInstruction

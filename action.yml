@@ -22,6 +22,10 @@ inputs:
     description: "Upload findings to GitHub code scanning. Caller needs security-events: write."
     required: false
     default: "true"
+  fail-on:
+    description: "Fail after generating/uploading the report when findings reach this severity: none, warning, or error"
+    required: false
+    default: none
 
 outputs:
   sarif:
@@ -45,20 +49,38 @@ runs:
       name: Scan coding-agent compatibility
       shell: bash
       env:
-        CANIAGENT_SARIF: ${{ runner.temp }}/caniagent.sarif
+        CANIAGENT_TEMP: ${{ runner.temp }}
         CANIAGENT_PATH: ${{ inputs.path }}
         CANIAGENT_AGENT: ${{ inputs.agent }}
         CANIAGENT_FROM: ${{ inputs.from }}
+        CANIAGENT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        args=(check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF")
+        CANIAGENT_SARIF="$(node -e 'const path = require("node:path"); const { randomUUID } = require("node:crypto"); process.stdout.write(path.join(process.env.CANIAGENT_TEMP, "caniagent-" + randomUUID() + ".sarif"));')"
+        args=(check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF" --fail-on "$CANIAGENT_FAIL_ON")
         if [[ -n "$CANIAGENT_FROM" ]]; then
           args+=(--from "$CANIAGENT_FROM")
         fi
-        node "$GITHUB_ACTION_PATH/src/cli.js" "${args[@]}"
+        status=0
+        node "$GITHUB_ACTION_PATH/src/cli.js" "${args[@]}" || status=$?
+        if [[ "$status" != 0 && "$status" != 2 ]]; then
+          exit "$status"
+        fi
+        if [[ ! -s "$CANIAGENT_SARIF" ]]; then
+          echo "caniagent: scan did not produce a SARIF report" >&2
+          exit 1
+        fi
         echo "sarif=$CANIAGENT_SARIF" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
 
     - name: Upload SARIF
       if: ${{ inputs.upload-sarif == 'true' }}
       uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
       with:
         sarif_file: ${{ steps.scan.outputs.sarif }}
+
+    - name: Enforce compatibility threshold
+      if: ${{ steps.scan.outputs.exit-code == '2' }}
+      shell: bash
+      run: |
+        echo "caniagent: compatibility findings meet the configured failure threshold" >&2
+        exit 2

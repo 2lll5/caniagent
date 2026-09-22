@@ -51,6 +51,7 @@ node src/cli.js check . --agent codex
 node src/cli.js check . --agent claude-code
 node src/cli.js check . --agent gemini-cli --format json
 node src/cli.js check . --agent codex --format sarif --output caniagent.sarif
+node src/cli.js check . --agent codex --fail-on warning
 ```
 
 The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and MCP declarations in `.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, and `opencode.json`. Native MCP settings files are only reported when they actually declare MCP configuration; generic agent settings files are intentionally not treated as instruction files because their presence alone does not prove use of a matrix capability. It reports native conventions and migration attention points; it does **not** rewrite your repository.
@@ -96,6 +97,16 @@ jobs:
 ```
 
 Set `upload-sarif: "false"` if you only want generation without GitHub code-scanning upload. The action has no hosted service dependency. Repository CI smoke-tests the composite action on GitHub-hosted Ubuntu, Windows, and macOS runners. When updating CanIAgent or checkout, review the new revision and replace the pinned SHA deliberately.
+
+To enforce compatibility in CI, use `--fail-on warning` in the CLI or the Action input `fail-on: warning` (requires a revision containing this input; the older pinned example above is advisory). `error` fails only for documented unsupported capabilities. The default, `none`, keeps checks advisory. The report is written before a threshold failure, and the Action uploads it before enforcing the threshold. Every Action invocation produces its own report path.
+
+| Threshold | Findings that fail the check |
+|---|---|
+| `none` (default) | None; scan and input errors still fail |
+| `warning` | Foreign conventions, partial support, and documented unsupported capabilities |
+| `error` | Documented unsupported capabilities only |
+
+Unknown and experimental support produce notes; a foreign file convention still produces a separate migration warning. CLI exit codes are **0** for a completed advisory/passing check, **1** for invalid input, scan, or write errors, and **2** when findings meet the selected threshold. See [migration checks](docs/MIGRATION_CHECK.md) for evidence and scope details.
 
 ## Data API
 

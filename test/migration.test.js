@@ -31,6 +31,11 @@ test("suggests instruction filenames only when target support is evidence-backed
       support: {
         codex: { status: "yes", note: "Uses AGENTS.md", evidence: [{ url: "https://example.test/codex" }] }
       }
+    }, {
+      id: "nested-instructions",
+      support: {
+        codex: { status: "yes", note: "Uses scoped AGENTS.md", evidence: [{ url: "https://example.test/codex-nested" }] }
+      }
     }]
   };
   const detections = [
@@ -56,6 +61,26 @@ test("does not suggest translations for unverified target instruction support", 
   };
   const detections = [{ path: "SOURCE.md", feature: "project-instructions", native: ["source"] }];
   assert.deepEqual(migrationSuggestions(matrix, detections, "source", "target"), []);
+});
+
+test("nested translations require evidence for nested support independently of project support", () => {
+  const detection = { path: "nested/SOURCE.md", feature: "nested-instructions", native: ["source"] };
+  const nestedEvidence = [{ url: "https://example.test/nested" }];
+  const matrix = {
+    agents: [{ id: "target", instructions: ["TARGET.md"] }],
+    features: [
+      { id: "project-instructions", support: { target: { status: "yes", evidence: [{ url: "https://example.test/root" }] } } },
+      { id: "nested-instructions", support: { target: { status: "yes", evidence: nestedEvidence } } }
+    ]
+  };
+  const [suggestion] = migrationSuggestions(matrix, [detection], "source", "target");
+  assert.equal(suggestion.evidence.feature, "nested-instructions");
+  assert.deepEqual(suggestion.evidence.urls, [nestedEvidence[0].url]);
+
+  for (const support of [undefined, { status: "partial", evidence: nestedEvidence }, { status: "unknown", evidence: [] }, { status: "yes", evidence: [] }]) {
+    matrix.features[1].support.target = support;
+    assert.deepEqual(migrationSuggestions(matrix, [detection], "source", "target"), []);
+  }
 });
 
 test("suggests documented project MCP config destinations", () => {

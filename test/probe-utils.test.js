@@ -105,6 +105,30 @@ test("leaves ordinary diagnostic output intact", () => {
   assert.equal(redactProbeOutput(input, { home: "" }), input);
 });
 
+test("redacts JSON credentials while preserving parseable logs and non-secret fields", () => {
+  const input = JSON.stringify({
+    token: "synthetic token with spaces",
+    password: 'synthetic "quoted" password',
+    OPENAI_API_KEY: "synthetic-provider-value",
+    nested: { AWS_SECRET_ACCESS_KEY: "synthetic-aws-value" },
+    api_key: 123456,
+    status: "ok",
+    count: 2
+  });
+  const output = redactProbeOutput(input, { home: "" });
+  assert.deepEqual(JSON.parse(output), {
+    token: "<REDACTED>", password: "<REDACTED>", OPENAI_API_KEY: "<REDACTED>",
+    nested: { AWS_SECRET_ACCESS_KEY: "<REDACTED>" }, api_key: "<REDACTED>", status: "ok", count: 2
+  });
+  assert.equal(output.includes("synthetic"), false);
+});
+
+test("redacts complete quoted secret assignments including whitespace and escaped quotes", () => {
+  const input = String.raw`password="synthetic value with spaces" MY_SERVICE_TOKEN='synthetic \'quoted\' token' status=ok`;
+  const output = redactProbeOutput(input, { home: "" });
+  assert.equal(output, `password="<REDACTED>" MY_SERVICE_TOKEN='<REDACTED>' status=ok`);
+});
+
 test("classifies probe execution outcomes without conflating process failures", () => {
   assert.equal(classifyProbeExecution({ status: 0 }), "success");
   assert.equal(classifyProbeExecution({ status: 2 }), "nonzero_exit");
