@@ -17,6 +17,8 @@ The probe harnesses below are shipped. A shipped harness does **not** mean every
 
 SARIF output and a reusable GitHub Action shipped in v0.2.
 
+- Configurable CI failure thresholds (`--fail-on` / Action `fail-on`) — shipped, with reports preserved on threshold failures.
+
 - `caniagent check --from claude-code --agent codex` — shipped; scopes findings to conventions native to the source agent.
 - Suggested instruction-file translations — shipped for evidence-backed project/nested instruction conventions.
 - Suggested MCP project-config destinations — shipped for evidence-backed target MCP support; schema rewriting remains out of scope.

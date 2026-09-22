@@ -41,3 +41,28 @@ test("scanner does not infer MCP support from malformed JSON config", () => {
 
   assert.deepEqual(scanRepository(dir), []);
 });
+
+test("scanner reports unreadable native configs instead of hiding MCP detections", (t) => {
+  const dir = fixture();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const files = [".codex/config.toml", ".gemini/settings.json", "opencode.json"];
+  for (const file of files) fs.writeFileSync(path.join(dir, file), "{}");
+  const originalRead = fs.readFileSync;
+  for (const file of files) {
+    const blocked = path.join(dir, file);
+    fs.readFileSync = (target, ...args) => {
+      if (path.resolve(target) === blocked) {
+        throw Object.assign(new Error("fixture-only diagnostic"), { code: "EACCES" });
+      }
+      return originalRead(target, ...args);
+    };
+    try {
+      assert.throws(() => scanRepository(dir), (error) => {
+        assert.equal(error.message, `Cannot read scan config: ${file} (EACCES)`);
+        return true;
+      });
+    } finally {
+      fs.readFileSync = originalRead;
+    }
+  }
+});

@@ -12,7 +12,8 @@ test("passes Action inputs through environment variables instead of shell interp
   assert.match(action, /CANIAGENT_AGENT: \$\{\{ inputs\.agent \}\}/);
   assert.match(action, /CANIAGENT_FROM: \$\{\{ inputs\.from \}\}/);
   assert.doesNotMatch(runBlock, /\$\{\{\s*inputs\./);
-  assert.match(runBlock, /args=\(check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT" --format sarif --output "\$CANIAGENT_SARIF"\)/);
+  assert.match(action, /CANIAGENT_FAIL_ON: \$\{\{ inputs\.fail-on \}\}/);
+  assert.match(runBlock, /args=\(check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT" --format sarif --output "\$CANIAGENT_SARIF" --fail-on "\$CANIAGENT_FAIL_ON"\)/);
   assert.match(runBlock, /args\+=\(--from "\$CANIAGENT_FROM"\)/);
   assert.match(runBlock, /node "\$GITHUB_ACTION_PATH\/src\/cli\.js" "\$\{args\[@\]\}"/);
 });

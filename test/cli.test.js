@@ -79,3 +79,18 @@ test("still accepts valid valued options", () => {
   assert.equal(result.status, 0);
   assert.doesNotThrow(() => JSON.parse(result.stdout));
 });
+
+test("help and version flags cannot turn missing option values into successful checks", () => {
+  for (const args of [
+    ["check", ".", "--agent", "--help"],
+    ["matrix", "--search", "--version"],
+    ["check", ".", "--agent", "codex", "--fail-on", "--version"]
+  ]) {
+    const result = run(args);
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, "");
+  }
+  const help = run(["check", "--help"]);
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /Usage:/);
+});
