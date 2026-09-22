@@ -37,7 +37,9 @@ export function migrationSuggestions(matrix, detections, sourceAgentId, targetAg
       .filter((item) => item.native.includes(sourceAgentId) && !item.native.includes(targetAgentId))
       .map((item) => {
         const directory = path.posix.dirname(item.path);
-        const targetPath = directory === "." ? targetInstruction : path.posix.join(directory, targetInstruction);
+        const targetPath = item.feature === "project-instructions"
+          ? targetInstruction
+          : path.posix.join(directory, targetInstruction);
         return {
           kind: "instruction-file",
           from: item.path,

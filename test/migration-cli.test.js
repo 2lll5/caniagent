@@ -42,6 +42,23 @@ test("check --from reports only source-native surfaces and evidence-backed trans
   }
 });
 
+test("project-scoped instruction files migrate to the target project root", () => {
+  const root = mkdtempSync(join(tmpdir(), "caniagent-project-scope-"));
+  try {
+    mkdirSync(join(root, ".claude"), { recursive: true });
+    writeFileSync(join(root, ".claude", "CLAUDE.md"), "# project instructions\n");
+
+    const result = run(["check", root, "--from", "claude-code", "--agent", "codex", "--format", "json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.suggestions.map(({ from, to }) => ({ from, to })), [
+      { from: ".claude/CLAUDE.md", to: "AGENTS.md" }
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("check --from rejects unknown and identical source agents", () => {
   const unknown = run(["check", ".", "--from", "missing", "--agent", "codex"]);
   assert.equal(unknown.status, 1);
