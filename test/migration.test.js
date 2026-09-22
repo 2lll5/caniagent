@@ -49,6 +49,26 @@ test("suggests instruction filenames only when target support is evidence-backed
   assert.deepEqual(migrationSuggestions(matrix, detections, "claude-code", "claude-code"), []);
 });
 
+test("does not suggest translating Codex override instructions as ordinary instructions", () => {
+  const matrix = {
+    agents: [{ id: "claude-code", instructions: ["CLAUDE.md"] }],
+    features: [{
+      id: "project-instructions",
+      support: {
+        "claude-code": { status: "yes", note: "Uses CLAUDE.md", evidence: [{ url: "https://example.test/claude" }] }
+      }
+    }]
+  };
+  const detections = [{
+    path: "AGENTS.override.md",
+    feature: "project-instructions",
+    native: ["codex"],
+    label: "AGENTS.override.md"
+  }];
+
+  assert.deepEqual(migrationSuggestions(matrix, detections, "codex", "claude-code"), []);
+});
+
 test("does not suggest translations for unverified target instruction support", () => {
   const matrix = {
     agents: [{ id: "target", instructions: ["TARGET.md"] }],
