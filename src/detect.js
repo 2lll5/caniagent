@@ -59,7 +59,7 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
   let depthLimitExceeded = false;
 
   function walk(dir, depth) {
-    if (fileLimitExceeded) return;
+    if (fileLimitExceeded || depthLimitExceeded) return;
     if (depth > maxDepth) {
       depthLimitExceeded = true;
       return;
@@ -81,7 +81,7 @@ export function scanRepository(root, { maxDepth = 32, maxFiles = 20000 } = {}) {
 
       if (entry.isDirectory()) {
         walk(full, depth + 1);
-        if (fileLimitExceeded) break;
+        if (fileLimitExceeded || depthLimitExceeded) break;
         continue;
       }
       if (!entry.isFile()) continue;
