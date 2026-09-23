@@ -34,6 +34,18 @@ test("scanner does not classify general native config files as MCP", () => {
   assert.deepEqual(scanRepository(dir), []);
 });
 
+test("scanner requires a complete Codex MCP table header", () => {
+  for (const content of ["[mcp_servers.docs", "[mcp_servers.docs] trailing-junk"]) {
+    const dir = fixture();
+    fs.writeFileSync(path.join(dir, ".codex", "config.toml"), `${content}\ncommand = "example"\n`);
+    assert.deepEqual(scanRepository(dir), []);
+  }
+
+  const dir = fixture();
+  fs.writeFileSync(path.join(dir, ".codex", "config.toml"), '[mcp_servers.docs] # documented table\ncommand = "example"\n');
+  assert.deepEqual(scanRepository(dir).map(({ path: file }) => file), [".codex/config.toml"]);
+});
+
 test("scanner reports malformed native JSON configs instead of hiding possible MCP detections", () => {
   for (const [file, content] of [
     [".mcp.json", '{ "mcpServers":'],
