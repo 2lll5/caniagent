@@ -101,8 +101,75 @@ function jsonHasKey(file, key, rel, options) {
   return value !== null && typeof value === "object" && Object.hasOwn(value, key);
 }
 
+function maskTomlStringsAndComments(text) {
+  let result = "";
+  let mode = "normal";
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const triple = text.slice(i, i + 3);
+
+    if (mode === "comment") {
+      if (char === "\n") {
+        mode = "normal";
+        result += char;
+      } else result += " ";
+      continue;
+    }
+    if (mode === "basic") {
+      result += char === "\n" ? "\n" : " ";
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') mode = "normal";
+      continue;
+    }
+    if (mode === "literal") {
+      result += char === "\n" ? "\n" : " ";
+      if (char === "'") mode = "normal";
+      continue;
+    }
+    if (mode === "multibasic" || mode === "multiliteral") {
+      const delimiter = mode === "multibasic" ? '\"\"\"' : "'''";
+      if (triple === delimiter) {
+        result += "   ";
+        i += 2;
+        mode = "normal";
+        escaped = false;
+        continue;
+      }
+      result += char === "\n" ? "\n" : " ";
+      if (mode === "multibasic") {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+      }
+      continue;
+    }
+
+    if (char === "#") {
+      mode = "comment";
+      result += " ";
+    } else if (triple === '\"\"\"') {
+      mode = "multibasic";
+      result += "   ";
+      i += 2;
+    } else if (triple === "'''") {
+      mode = "multiliteral";
+      result += "   ";
+      i += 2;
+    } else if (char === '"') {
+      mode = "basic";
+      result += " ";
+    } else if (char === "'") {
+      mode = "literal";
+      result += " ";
+    } else result += char;
+  }
+  return result;
+}
+
 function codexConfigHasMcp(file, rel) {
-  return /^\s*\[mcp_servers(?:\.[^\]\r\n]+)?\]\s*(?:#.*)?$/m.test(readConfig(file, rel));
+  const structuralText = maskTomlStringsAndComments(readConfig(file, rel));
+  return /^\s*\[mcp_servers(?:\.[^\]\r\n]+)?\]\s*$/m.test(structuralText);
 }
 
 const RULES = [
