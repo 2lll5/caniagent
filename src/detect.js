@@ -40,7 +40,7 @@ function jsonHasKey(file, key, rel) {
 }
 
 function codexConfigHasMcp(file, rel) {
-  return /^\s*\[mcp_servers(?:\.|\])/m.test(readConfig(file, rel));
+  return /^\s*\[mcp_servers(?:\.[^\]\r\n]+)?\]\s*(?:#.*)?$/m.test(readConfig(file, rel));
 }
 
 const RULES = [
