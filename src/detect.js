@@ -51,7 +51,7 @@ const RULES = [
   { match: (rel, name, full) => /(^|\/)\.mcp\.json$/.test(rel) && validJsonConfig(full, rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
   { match: (rel, name, full) => rel === ".codex/config.toml" && codexConfigHasMcp(full, rel), feature: "mcp", native: ["codex"], label: ".codex/config.toml" },
   { match: (rel, name, full) => rel === ".gemini/settings.json" && jsonHasKey(full, "mcpServers", rel), feature: "mcp", native: ["gemini-cli"], label: ".gemini/settings.json" },
-  { match: (rel, name, full) => rel === "opencode.json" && jsonHasKey(full, "mcp", rel), feature: "mcp", native: ["opencode"], label: "opencode.json" },
+  { match: (rel, name, full) => (rel === "opencode.json" || rel === ".opencode/opencode.json") && jsonHasKey(full, "mcp", rel), feature: "mcp", native: ["opencode"], label: "opencode.json" },
   { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.gemini|\.opencode)\/skills\//.test(rel), feature: "skills", native: skillNativeAgents, label: "SKILL.md" }
 ];
 
