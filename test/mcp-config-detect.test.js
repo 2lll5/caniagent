@@ -35,6 +35,23 @@ test("scanner recognizes OpenCode MCP config in the documented .opencode project
   ]);
 });
 
+test("scanner recognizes documented OpenCode JSONC config with comments and trailing commas", () => {
+  for (const file of ["opencode.jsonc", ".opencode/opencode.jsonc"]) {
+    const dir = fixture();
+    const full = path.join(dir, file);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, `{
+      // Project MCP config
+      "mcp": {
+        "docs": { "type": "remote", "url": "https://example.com/a//b", },
+      },
+    }`);
+    assert.deepEqual(scanRepository(dir).map(({ path: found, native }) => ({ path: found, native })), [
+      { path: file, native: ["opencode"] }
+    ]);
+  }
+});
+
 test("scanner does not classify general native config files as MCP", () => {
   const dir = fixture();
   fs.writeFileSync(path.join(dir, ".codex", "config.toml"), 'model = "example"\n');
@@ -57,15 +74,16 @@ test("scanner requires a complete Codex MCP table header", () => {
 });
 
 test("scanner reports malformed native JSON configs instead of hiding possible MCP detections", () => {
-  for (const [file, content] of [
-    [".mcp.json", '{ "mcpServers":'],
-    [".gemini/settings.json", '{ "mcpServers":'],
-    ["opencode.json", '{ "mcp":']
+  for (const [file, content, format] of [
+    [".mcp.json", '{ "mcpServers":', "JSON"],
+    [".gemini/settings.json", '{ "mcpServers":', "JSON"],
+    ["opencode.json", '{ "mcp":', "JSON"],
+    ["opencode.jsonc", '{ "mcp": /* unterminated', "JSONC"]
   ]) {
     const dir = fixture();
     fs.writeFileSync(path.join(dir, file), content);
     assert.throws(() => scanRepository(dir), (error) => {
-      assert.equal(error.message, `Cannot parse scan config as JSON: ${file}`);
+      assert.equal(error.message, `Cannot parse scan config as ${format}: ${file}`);
       return true;
     });
   }
