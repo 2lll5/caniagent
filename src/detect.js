@@ -20,14 +20,22 @@ function readConfig(file, rel) {
   }
 }
 
-function jsonHasKey(file, key, rel) {
+function parseJsonConfig(file, rel) {
   const text = readConfig(file, rel);
-  let value;
   try {
-    value = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     throw new Error(`Cannot parse scan config as JSON: ${rel}`);
   }
+}
+
+function validJsonConfig(file, rel) {
+  parseJsonConfig(file, rel);
+  return true;
+}
+
+function jsonHasKey(file, key, rel) {
+  const value = parseJsonConfig(file, rel);
   return value !== null && typeof value === "object" && Object.hasOwn(value, key);
 }
 
@@ -40,7 +48,7 @@ const RULES = [
   { match: (rel, name) => /^AGENTS\.override\.md$/.test(name), feature: instructionFeature, native: ["codex"], label: "AGENTS.override.md" },
   { match: (rel, name) => /^CLAUDE\.md$/.test(name), feature: instructionFeature, native: ["claude-code"], label: "CLAUDE.md" },
   { match: (rel, name) => /^GEMINI\.md$/.test(name), feature: instructionFeature, native: ["gemini-cli"], label: "GEMINI.md" },
-  { match: (rel) => /(^|\/)\.mcp\.json$/.test(rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
+  { match: (rel, name, full) => /(^|\/)\.mcp\.json$/.test(rel) && validJsonConfig(full, rel), feature: "mcp", native: ["claude-code"], label: ".mcp.json" },
   { match: (rel, name, full) => rel === ".codex/config.toml" && codexConfigHasMcp(full, rel), feature: "mcp", native: ["codex"], label: ".codex/config.toml" },
   { match: (rel, name, full) => rel === ".gemini/settings.json" && jsonHasKey(full, "mcpServers", rel), feature: "mcp", native: ["gemini-cli"], label: ".gemini/settings.json" },
   { match: (rel, name, full) => rel === "opencode.json" && jsonHasKey(full, "mcp", rel), feature: "mcp", native: ["opencode"], label: "opencode.json" },
