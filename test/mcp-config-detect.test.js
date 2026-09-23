@@ -36,6 +36,7 @@ test("scanner does not classify general native config files as MCP", () => {
 
 test("scanner reports malformed native JSON configs instead of hiding possible MCP detections", () => {
   for (const [file, content] of [
+    [".mcp.json", '{ "mcpServers":'],
     [".gemini/settings.json", '{ "mcpServers":'],
     ["opencode.json", '{ "mcp":']
   ]) {
