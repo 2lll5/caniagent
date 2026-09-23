@@ -43,9 +43,11 @@ function stripJsonc(text) {
       continue;
     }
     if (char === "/" && text[i + 1] === "*") {
+      const commentStart = i;
       i += 2;
       while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
-      if (i < text.length) i += 1;
+      if (i >= text.length) throw new SyntaxError(`Unterminated block comment at offset ${commentStart}`);
+      i += 1;
       continue;
     }
     withoutComments += char;
