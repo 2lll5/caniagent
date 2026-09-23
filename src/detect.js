@@ -81,7 +81,8 @@ function stripJsonc(text) {
 }
 
 function parseJsonConfig(file, rel, { jsonc = false } = {}) {
-  const text = readConfig(file, rel);
+  const raw = readConfig(file, rel);
+  const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
   try {
     return JSON.parse(jsonc ? stripJsonc(text) : text);
   } catch {
