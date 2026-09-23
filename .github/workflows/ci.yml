@@ -65,3 +65,26 @@ jobs:
       - name: Check action output
         shell: bash
         run: test -s "${{ steps.caniagent.outputs.sarif }}"
+      - name: Create threshold fixture
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/caniagent-threshold-fixture"
+          printf '# Claude-only project instructions\n' > "$RUNNER_TEMP/caniagent-threshold-fixture/CLAUDE.md"
+      - id: threshold
+        name: Exercise fail-on threshold
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/caniagent-threshold-fixture
+          agent: codex
+          upload-sarif: "false"
+          fail-on: warning
+      - name: Check threshold failure preserves SARIF
+        if: ${{ always() }}
+        shell: bash
+        env:
+          THRESHOLD_OUTCOME: ${{ steps.threshold.outcome }}
+          THRESHOLD_SARIF: ${{ steps.threshold.outputs.sarif }}
+        run: |
+          test "$THRESHOLD_OUTCOME" = failure
+          test -s "$THRESHOLD_SARIF"
