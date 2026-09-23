@@ -40,6 +40,17 @@ command = "example"
   ]);
 });
 
+test("scanner detects Codex MCP tables with TOML dotted-key whitespace", () => {
+  const found = scanCodexConfig(`
+[mcp_servers . "spaced.server"]
+command = "example"
+`);
+
+  assert.deepEqual(found.map(({ path: file, feature, native }) => ({ path: file, feature, native })), [
+    { path: ".codex/config.toml", feature: "mcp", native: ["codex"] }
+  ]);
+});
+
 test("scanner ignores MCP-looking text in an unterminated TOML multiline string", () => {
   const found = scanCodexConfig(`
 message = """
