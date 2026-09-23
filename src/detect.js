@@ -169,7 +169,7 @@ function maskTomlStringsAndComments(text) {
 
 function codexConfigHasMcp(file, rel) {
   const structuralText = maskTomlStringsAndComments(readConfig(file, rel));
-  return /^\s*\[mcp_servers(?:\.[^\]\r\n]+)?\]\s*$/m.test(structuralText);
+  return /^\s*\[mcp_servers(?:\s*\.\s*[^\]\r\n]+)?\]\s*$/m.test(structuralText);
 }
 
 const RULES = [
