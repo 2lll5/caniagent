@@ -25,6 +25,16 @@ test("scanner recognizes documented MCP declarations in native project configs",
   ]);
 });
 
+test("scanner recognizes OpenCode MCP config in the documented .opencode project directory", () => {
+  const dir = fixture();
+  fs.mkdirSync(path.join(dir, ".opencode"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".opencode", "opencode.json"), JSON.stringify({ mcp: { docs: { type: "local", command: ["example"] } } }));
+
+  assert.deepEqual(scanRepository(dir).map(({ path: file, native }) => ({ path: file, native })), [
+    { path: ".opencode/opencode.json", native: ["opencode"] }
+  ]);
+});
+
 test("scanner does not classify general native config files as MCP", () => {
   const dir = fixture();
   fs.writeFileSync(path.join(dir, ".codex", "config.toml"), 'model = "example"\n');
