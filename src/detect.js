@@ -20,12 +20,70 @@ function readConfig(file, rel) {
   }
 }
 
-function parseJsonConfig(file, rel) {
+function stripJsonc(text) {
+  let withoutComments = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      withoutComments += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      withoutComments += char;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "/") {
+      while (i + 1 < text.length && text[i + 1] !== "\n") i += 1;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
+      if (i < text.length) i += 1;
+      continue;
+    }
+    withoutComments += char;
+  }
+
+  let result = "";
+  inString = false;
+  escaped = false;
+  for (let i = 0; i < withoutComments.length; i += 1) {
+    const char = withoutComments[i];
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === ",") {
+      let next = i + 1;
+      while (/\s/.test(withoutComments[next] ?? "")) next += 1;
+      if (withoutComments[next] === "}" || withoutComments[next] === "]") continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function parseJsonConfig(file, rel, { jsonc = false } = {}) {
   const text = readConfig(file, rel);
   try {
-    return JSON.parse(text);
+    return JSON.parse(jsonc ? stripJsonc(text) : text);
   } catch {
-    throw new Error(`Cannot parse scan config as JSON: ${rel}`);
+    throw new Error(`Cannot parse scan config as ${jsonc ? "JSONC" : "JSON"}: ${rel}`);
   }
 }
 
@@ -34,8 +92,8 @@ function validJsonConfig(file, rel) {
   return true;
 }
 
-function jsonHasKey(file, key, rel) {
-  const value = parseJsonConfig(file, rel);
+function jsonHasKey(file, key, rel, options) {
+  const value = parseJsonConfig(file, rel, options);
   return value !== null && typeof value === "object" && Object.hasOwn(value, key);
 }
 
@@ -52,6 +110,7 @@ const RULES = [
   { match: (rel, name, full) => rel === ".codex/config.toml" && codexConfigHasMcp(full, rel), feature: "mcp", native: ["codex"], label: ".codex/config.toml" },
   { match: (rel, name, full) => rel === ".gemini/settings.json" && jsonHasKey(full, "mcpServers", rel), feature: "mcp", native: ["gemini-cli"], label: ".gemini/settings.json" },
   { match: (rel, name, full) => (rel === "opencode.json" || rel === ".opencode/opencode.json") && jsonHasKey(full, "mcp", rel), feature: "mcp", native: ["opencode"], label: "opencode.json" },
+  { match: (rel, name, full) => (rel === "opencode.jsonc" || rel === ".opencode/opencode.jsonc") && jsonHasKey(full, "mcp", rel, { jsonc: true }), feature: "mcp", native: ["opencode"], label: "opencode.jsonc" },
   { match: (rel, name) => /^SKILL\.md$/.test(name) && /(^|\/)(\.agents|\.claude|\.gemini|\.opencode)\/skills\//.test(rel), feature: "skills", native: skillNativeAgents, label: "SKILL.md" }
 ];
 
