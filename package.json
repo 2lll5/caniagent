@@ -1,6 +1,6 @@
 {
   "name": "caniagent",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Compatibility matrix and repo scanner for AI coding agents.",
   "type": "module",
   "bin": { "caniagent": "./src/cli.js" },
