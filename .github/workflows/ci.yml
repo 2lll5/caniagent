@@ -52,6 +52,12 @@ jobs:
           npm init -y >/dev/null
           npm install "$GITHUB_WORKSPACE/$tarball"
           npx --no-install caniagent matrix --search mcp
+          test -f node_modules/caniagent/scripts/probe.js
+          test -f node_modules/caniagent/scripts/probe-nested.js
+          test -f node_modules/caniagent/scripts/probe-mcp.js
+          test -f node_modules/caniagent/scripts/probe-skills.js
+          test -f node_modules/caniagent/scripts/probe-structured-output.js
+          test -f node_modules/caniagent/scripts/probe-resume.js
 
   action-smoke:
     strategy:
