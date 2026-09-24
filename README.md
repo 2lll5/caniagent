@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: 2lll5/caniagent@8da277ea5e4e5cd30df9a00304e20a9ca9342e51 # post-v0.2.0; includes fail-on
+      - uses: 2lll5/caniagent@36564f318331e1e9bc2cacdb09382d12bac8ec89 # post-v0.2.0; current reviewed revision
         with:
           agent: codex
 ```
