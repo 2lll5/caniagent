@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-const workflow = fs.readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+const workflow = fs.readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const verifyBlock = workflow.match(/      - name: Verify existing release tag\n[\s\S]*?        run: \|\n([\s\S]*?)(?=\n      - name: Validate tagged source)/)?.[1];
 assert.ok(verifyBlock, "Release tag verification script must exist");
 const verifyScript = verifyBlock.split("\n").map(line => line.startsWith("          ") ? line.slice(10) : line).join("\n");
