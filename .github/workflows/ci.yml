@@ -1,8 +1,8 @@
 name: CI
 
+# Run the full matrix before merging a PR, or explicitly on demand.
+# Avoid repeating identical checks for every main push.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
