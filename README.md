@@ -186,6 +186,8 @@ CanIAgent has **zero runtime dependencies** and supports Node.js 20+. CI also pa
 
 Corrections, behavior probes and new agent adapters are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [ROADMAP.md](ROADMAP.md).
 
+GitHub Releases are created only by an explicit manual workflow dispatch with an existing version tag. See [release instructions](docs/RELEASING.md).
+
 ## License
 
 MIT
