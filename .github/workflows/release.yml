@@ -1,44 +1,69 @@
 name: Release
 
+# Publishing is intentional: a package edit or an ordinary main push must not
+# create a release (or a tag) as a side effect.
 on:
-  push:
-    branches: [main]
-    paths:
-      - package.json
-      - .github/workflows/release.yml
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag, e.g. v0.4.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: caniagent-release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
 
-      - id: version
-        name: Read package version
+      - name: Verify existing release tag
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          version=$(node -e "const p=require('./package.json'); const l=require('./package-lock.json'); if (p.version !== l.version || p.version !== l.packages[''].version) process.exit(1); process.stdout.write(p.version)")
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Release must be dispatched from main" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected an existing v-prefixed semantic-version tag" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          tag_commit=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          if ! git merge-base --is-ancestor "$tag_commit" refs/remotes/origin/main; then
+            echo "Release tag must point to a commit reachable from main" >&2
+            exit 1
+          fi
+          git checkout --detach "$tag_commit"
+
+          node -e 'const p=require("./package.json"); const l=require("./package-lock.json"); const v=process.env.RELEASE_TAG.slice(1); if(p.version!==v || l.version!==v || l.packages?.[""]?.version!==v) { console.error("Tag, package.json and package-lock.json versions must match"); process.exit(1); }'
+
+      - name: Validate tagged source
+        run: npm run check
 
       - name: Create GitHub release if missing
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          tag="v$VERSION"
-
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "$tag already exists; nothing to do."
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$RELEASE_TAG already has a release; nothing to do."
             exit 0
           fi
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$tag" --generate-notes
-          else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" --generate-notes
-          fi
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$RELEASE_TAG" --generate-notes
