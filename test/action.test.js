@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const action = fs.readFileSync(new URL("../action.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
-const ci = fs.readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+const workflows = [
+  [".github/workflows/ci.yml", new URL("../.github/workflows/ci.yml", import.meta.url)],
+  [".github/workflows/data-sync.yml", new URL("../.github/workflows/data-sync.yml", import.meta.url)],
+  [".github/workflows/release.yml", new URL("../.github/workflows/release.yml", import.meta.url)]
+].map(([label, url]) => [label, fs.readFileSync(url, "utf8").replaceAll("\r\n", "\n")]);
 
 test("passes Action inputs through environment variables instead of shell interpolation", () => {
   const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
@@ -45,5 +49,7 @@ function assertImmutableActionPins(source, label) {
 
 test("pins third-party Action dependencies to immutable commits", () => {
   assertImmutableActionPins(action, "action.yml");
-  assertImmutableActionPins(ci, ".github/workflows/ci.yml");
+  for (const [label, source] of workflows) {
+    assertImmutableActionPins(source, label);
+  }
 });
