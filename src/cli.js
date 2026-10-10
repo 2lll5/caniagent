@@ -12,7 +12,7 @@ const VERSION = packageVersion;
 const matrix = loadMatrix();
 
 function usage() {
-  console.log(`CanIAgent ${VERSION}\n\nUsage:\n  caniagent matrix [--category <name>] [--search <text>] [--json]\n  caniagent feature <feature-id> [--json]\n  caniagent agent <agent-id> [--json]\n  caniagent check [path] [--from <agent-id>] --agent <agent-id> [--format text|json|sarif] [--output <file>] [--fail-on none|warning|error]\n  caniagent categories\n  caniagent agents\n  caniagent --version\n  caniagent --help\n\nExamples:\n  caniagent matrix\n  caniagent feature mcp\n  caniagent check . --agent codex\n  caniagent check . --from claude-code --agent codex\n  caniagent check . --agent claude-code --format json\n  caniagent check . --agent codex --format sarif --output caniagent.sarif\n`);
+  console.log(`CanIAgent ${VERSION}\n\nUsage:\n  caniagent matrix [--category <name>] [--search <text>] [--json]\n  caniagent feature <feature-id> [--json]\n  caniagent agent <agent-id> [--json]\n  caniagent check [path] [--from <agent-id>] --agent <agent-id> [--format text|json|sarif] [--output <file>] [--fail-on none|warning|error] [--max-depth <n>] [--max-files <n>]\n  caniagent categories\n  caniagent agents\n  caniagent --version\n  caniagent --help\n\nExamples:\n  caniagent matrix\n  caniagent feature mcp\n  caniagent check . --agent codex\n  caniagent check . --from claude-code --agent codex\n  caniagent check . --agent claude-code --format json\n  caniagent check . --agent codex --format sarif --output caniagent.sarif\n`);
 }
 
 function valueOf(args, name) {
@@ -26,7 +26,7 @@ function valueOf(args, name) {
 function has(args, name) { return args.includes(name); }
 
 function hasInfoFlag(args, flags) {
-  const valuedOptions = new Set(["--category", "--search", "--agent", "--from", "--format", "--output", "--fail-on"]);
+  const valuedOptions = new Set(["--category", "--search", "--agent", "--from", "--format", "--output", "--fail-on", "--max-depth", "--max-files"]);
   for (let i = 0; i < args.length; i += 1) {
     if (valuedOptions.has(args[i])) { i += 1; continue; }
     if (flags.includes(args[i])) return true;
@@ -121,7 +121,7 @@ try {
       for (const row of support) console.log(`${icon(row.status)} ${row.name}: ${row.status}`);
     }
   } else if (command === "check") {
-    validateOptions(rest, ["--agent", "--from", "--format", "--output", "--fail-on", "--json"]);
+    validateOptions(rest, ["--agent", "--from", "--format", "--output", "--fail-on", "--max-depth", "--max-files", "--json"]);
     if (has(rest, "--json") && has(rest, "--format")) throw new Error("--json cannot be combined with --format");
     const target = valueOf(rest, "--agent");
     if (!target) throw new Error("check requires --agent <agent-id>");
@@ -136,8 +136,19 @@ try {
     if (!new Set(["text", "json", "sarif"]).has(format)) throw new Error(`Unsupported format: ${format}`);
     const failOn = valueOf(rest, "--fail-on") ?? "none";
     if (!["none", "warning", "error"].includes(failOn)) throw new Error(`Unsupported failure threshold: ${failOn}; use none, warning, or error`);
-    const targetPath = path.resolve(validatePositionals(rest, ["--agent", "--from", "--format", "--output", "--fail-on"], 1)[0] ?? ".");
-    const detections = migrationDetections(scanRepository(targetPath), source);
+    const targetPath = path.resolve(validatePositionals(rest, ["--agent", "--from", "--format", "--output", "--fail-on", "--max-depth", "--max-files"], 1)[0] ?? ".");
+    const scanLimit = (option) => {
+      const raw = valueOf(rest, option);
+      if (raw === undefined) return undefined;
+      if (!/^(0|[1-9]\\d*)$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+        throw new Error(`${option} must be a non-negative safe integer`);
+      }
+      return Number(raw);
+    };
+    const detections = migrationDetections(scanRepository(targetPath, {
+      maxDepth: scanLimit("--max-depth"),
+      maxFiles: scanLimit("--max-files")
+    }), source);
     const findings = compatibilityFindings(matrix, detections, target);
     const suggestions = migrationSuggestions(matrix, detections, source, target);
     const sarif = buildSarif({ matrix, targetAgent: agent, root: targetPath, findings, suggestions });
