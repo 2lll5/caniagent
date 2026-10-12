@@ -21,7 +21,8 @@ test("Action keeps separate reports across invocations and preserves threshold f
   const env = {
     ...process.env, GITHUB_ACTION_PATH: actionPath, GITHUB_OUTPUT: output,
     CANIAGENT_TEMP: root, CANIAGENT_PATH: repo, CANIAGENT_AGENT: "codex",
-    CANIAGENT_FROM: "claude-code", CANIAGENT_FAIL_ON: "warning"
+    CANIAGENT_FROM: "claude-code", CANIAGENT_FAIL_ON: "warning",
+    CANIAGENT_MAX_DEPTH: "", CANIAGENT_MAX_FILES: ""
   };
   const invoke = () => {
     fs.writeFileSync(output, "");
@@ -55,4 +56,24 @@ test("Action keeps separate reports across invocations and preserves threshold f
   assert.equal(noReport.execution.status, 1);
   assert.deepEqual(noReport.outputs, {});
   assert.match(noReport.execution.stderr, /scan did not produce a SARIF report/);
+
+  env.CANIAGENT_PATH = repo;
+  env.CANIAGENT_MAX_FILES = "0";
+  const limited = invoke();
+  assert.equal(limited.execution.status, 1);
+  assert.deepEqual(limited.outputs, {});
+  assert.match(limited.execution.stderr, /Scan exceeded file limit \(0\)/);
+
+  env.CANIAGENT_MAX_FILES = "1";
+  env.CANIAGENT_MAX_DEPTH = "0";
+  const bounded = invoke();
+  assert.equal(bounded.execution.status, 0, bounded.execution.stderr);
+  assert.equal(bounded.outputs["exit-code"], "0");
+  assert.ok(fs.existsSync(bounded.outputs.sarif));
+
+  env.CANIAGENT_MAX_FILES = "1.5";
+  const malformed = invoke();
+  assert.equal(malformed.execution.status, 1);
+  assert.deepEqual(malformed.outputs, {});
+  assert.match(malformed.execution.stderr, /--max-files must be a non-negative safe integer/);
 });

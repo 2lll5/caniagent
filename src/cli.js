@@ -140,7 +140,7 @@ try {
     const scanLimit = (option) => {
       const raw = valueOf(rest, option);
       if (raw === undefined) return undefined;
-      if (!/^(0|[1-9]\\d*)$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+      if (!/^(0|[1-9]\d*)$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
         throw new Error(`${option} must be a non-negative safe integer`);
       }
       return Number(raw);
