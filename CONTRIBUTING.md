@@ -36,3 +36,7 @@ A feature should be portable enough to compare across multiple coding agents. Ve
 ## Probe contributions
 
 Behavior probes are especially valuable. Keep fixtures minimal and deterministic. Never commit tokens, credentials, private prompts, or unredacted logs.
+
+## CI workflow
+
+Pull requests run the full CI matrix before merge. To validate a direct main-branch change, use Actions > CI > Run workflow. CI is intentionally not triggered by every main push; prefer pull requests so the checks run before merging.
