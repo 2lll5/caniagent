@@ -10,10 +10,12 @@ const invalidCases = [
   ["maxDepth", 1.5],
   ["maxDepth", Number.NaN],
   ["maxDepth", Number.POSITIVE_INFINITY],
+  ["maxDepth", Number.MAX_SAFE_INTEGER + 1],
   ["maxFiles", -1],
   ["maxFiles", 1.5],
   ["maxFiles", Number.NaN],
-  ["maxFiles", Number.POSITIVE_INFINITY]
+  ["maxFiles", Number.POSITIVE_INFINITY],
+  ["maxFiles", Number.MAX_SAFE_INTEGER + 1]
 ];
 
 for (const [name, value] of invalidCases) {
