@@ -13,6 +13,10 @@ test("passes Action inputs through environment variables instead of shell interp
   assert.match(action, /CANIAGENT_FROM: \$\{\{ inputs\.from \}\}/);
   assert.doesNotMatch(runBlock, /\$\{\{\s*inputs\./);
   assert.match(action, /CANIAGENT_FAIL_ON: \$\{\{ inputs\.fail-on \}\}/);
+  assert.match(action, /CANIAGENT_MAX_DEPTH: \$\{\{ inputs\.max-depth \}\}/);
+  assert.match(action, /CANIAGENT_MAX_FILES: \$\{\{ inputs\.max-files \}\}/);
+  assert.match(runBlock, /args\+=\(--max-depth "\$CANIAGENT_MAX_DEPTH"\)/);
+  assert.match(runBlock, /args\+=\(--max-files "\$CANIAGENT_MAX_FILES"\)/);
   assert.match(runBlock, /args=\(check "\$CANIAGENT_PATH" --agent "\$CANIAGENT_AGENT" --format sarif --output "\$CANIAGENT_SARIF" --fail-on "\$CANIAGENT_FAIL_ON"\)/);
   assert.match(runBlock, /args\+=\(--from "\$CANIAGENT_FROM"\)/);
   assert.match(runBlock, /node "\$GITHUB_ACTION_PATH\/src\/cli\.js" "\$\{args\[@\]\}"/);
@@ -22,6 +26,16 @@ test("source-agent Action input is optional and defaults to unscoped checks", ()
   assert.match(action, /  from:\n    description:[^\n]+\n    required: false\n    default: ""/);
   const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
   assert.match(runBlock, /if \[\[ -n "\$CANIAGENT_FROM" \]\]; then/);
+});
+
+test("optional Action scan limits preserve CLI defaults and use safe argument arrays", () => {
+  for (const name of ["max-depth", "max-files"]) {
+    assert.match(action, new RegExp(`  ${name}:\\n    description:[^\\n]+\\n    required: false\\n    default: ""`));
+  }
+  const runBlock = action.match(/    - id: scan[\s\S]*?      run: \|\n([\s\S]*?)(?=\n    - name: Upload SARIF)/)?.[1] ?? "";
+  assert.match(runBlock, /if \[\[ -n "\$CANIAGENT_MAX_DEPTH" \]\]; then/);
+  assert.match(runBlock, /if \[\[ -n "\$CANIAGENT_MAX_FILES" \]\]; then/);
+  assert.doesNotMatch(runBlock, /\$\{\{\s*inputs\./);
 });
 
 test("validates upload-sarif instead of silently treating typos as false", () => {
