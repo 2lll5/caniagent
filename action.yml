@@ -18,6 +18,14 @@ inputs:
     description: Repository path to scan
     required: false
     default: .
+  max-depth:
+    description: Optional non-negative safe integer directory-depth limit (CLI default 32)
+    required: false
+    default: ""
+  max-files:
+    description: Optional non-negative safe integer visited-file limit (CLI default 20000)
+    required: false
+    default: ""
   upload-sarif:
     description: "Upload findings to GitHub code scanning. Caller needs security-events: write."
     required: false
@@ -54,11 +62,19 @@ runs:
         CANIAGENT_AGENT: ${{ inputs.agent }}
         CANIAGENT_FROM: ${{ inputs.from }}
         CANIAGENT_FAIL_ON: ${{ inputs.fail-on }}
+        CANIAGENT_MAX_DEPTH: ${{ inputs.max-depth }}
+        CANIAGENT_MAX_FILES: ${{ inputs.max-files }}
       run: |
         CANIAGENT_SARIF="$(node -e 'const path = require("node:path"); const { randomUUID } = require("node:crypto"); process.stdout.write(path.join(process.env.CANIAGENT_TEMP, "caniagent-" + randomUUID() + ".sarif"));')"
         args=(check "$CANIAGENT_PATH" --agent "$CANIAGENT_AGENT" --format sarif --output "$CANIAGENT_SARIF" --fail-on "$CANIAGENT_FAIL_ON")
         if [[ -n "$CANIAGENT_FROM" ]]; then
           args+=(--from "$CANIAGENT_FROM")
+        fi
+        if [[ -n "$CANIAGENT_MAX_DEPTH" ]]; then
+          args+=(--max-depth "$CANIAGENT_MAX_DEPTH")
+        fi
+        if [[ -n "$CANIAGENT_MAX_FILES" ]]; then
+          args+=(--max-files "$CANIAGENT_MAX_FILES")
         fi
         status=0
         node "$GITHUB_ACTION_PATH/src/cli.js" "${args[@]}" || status=$?

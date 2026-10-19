@@ -84,6 +84,42 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/caniagent-threshold-fixture"
           printf '# Claude-only project instructions\n' > "$RUNNER_TEMP/caniagent-threshold-fixture/CLAUDE.md"
+      # Exercise non-default Action inputs on all three hosted operating systems
+      # without adding more jobs to the existing matrix.
+      - id: bounded
+        name: Exercise custom scan limits
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/caniagent-threshold-fixture
+          agent: codex
+          upload-sarif: "false"
+          max-depth: "0"
+          max-files: "1"
+      - name: Check bounded scan produces SARIF
+        shell: bash
+        env:
+          BOUNDED_SARIF: ${{ steps.bounded.outputs.sarif }}
+        run: |
+          test -s "$BOUNDED_SARIF"
+          node -e "const fs=require('fs'); const s=JSON.parse(fs.readFileSync(process.argv[1])); if(s.version!=='2.1.0') process.exit(1)" "$BOUNDED_SARIF"
+      - id: limit-rejected
+        name: Reject exhausted file limit
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/caniagent-threshold-fixture
+          agent: codex
+          upload-sarif: "false"
+          max-files: "0"
+      - name: Check exceeded limit fails without partial SARIF
+        if: ${{ always() }}
+        shell: bash
+        env:
+          LIMIT_OUTCOME: ${{ steps.limit-rejected.outcome }}
+          LIMIT_SARIF: ${{ steps.limit-rejected.outputs.sarif }}
+        run: |
+          test "$LIMIT_OUTCOME" = failure
+          test -z "$LIMIT_SARIF"
       - id: threshold
         name: Exercise fail-on threshold
         continue-on-error: true

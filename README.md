@@ -52,7 +52,10 @@ node src/cli.js check . --agent claude-code
 node src/cli.js check . --agent gemini-cli --format json
 node src/cli.js check . --agent codex --format sarif --output caniagent.sarif
 node src/cli.js check . --agent codex --fail-on warning
+node src/cli.js check . --agent codex --max-depth 64 --max-files 50000
 ```
+
+The CLI accepts optional non-negative safe integer `--max-depth` and `--max-files` scan limits (defaults: 32 directory levels and 20,000 visited files). A scan that exceeds either limit fails instead of producing an incomplete compatibility report. The composite GitHub Action also accepts optional `max-depth` and `max-files` inputs; omit them to retain the defaults. Invalid values fail before SARIF upload.
 
 The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and MCP declarations in `.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, and `opencode.json`. Native MCP settings files are only reported when they actually declare MCP configuration; generic agent settings files are intentionally not treated as instruction files because their presence alone does not prove use of a matrix capability. It reports native conventions and migration attention points; it does **not** rewrite your repository.
 
