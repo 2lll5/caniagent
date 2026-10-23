@@ -6,10 +6,14 @@ The probe creates a temporary workspace and home for each supported agent, confi
 
 ## Verdicts
 
-- `pass`: the agent command succeeded and the deterministic tool result was observed.
-- `fail`: the agent command succeeded but the expected tool result was absent.
+- `pass`: the agent command succeeded and its captured stdout/stderr contained the expected fixed marker. This is an **output-only signal**, not proof that an MCP tool was invoked.
+- `fail`: the agent command succeeded but the expected marker was absent from captured output. This does not by itself prove the agent lacks MCP support.
 - `skip`: the agent executable was not installed.
 - `inconclusive`: execution failed, timed out, was interrupted, or could not otherwise produce trustworthy behavior evidence. Authentication-dependent failures therefore do not become negative compatibility claims.
+
+## Evidence limitation (current implementation)
+
+The probe prompt itself contains `CANIAGENT_MCP_ECHO_OK`, and `classifyMcpResult()` currently checks for that string in captured stdout/stderr. An agent that merely echoes or quotes its prompt can therefore yield a **false `pass` without calling `caniagent_echo`**. Conversely, output truncation or redaction can hide a real tool result and yield `fail`. Treat both verdicts as diagnostic observations, not provider-backed proof of tool invocation or non-support. Do **not** promote compatibility-matrix statuses based on this marker alone; corroborate with an independently observed MCP `tools/call` trace or a verified server-side invocation record, and preserve the tested agent version. This limitation remains until a code fix and its regression tests are merged.
 
 The JSON evidence records platform, Node version, agent version command, exact redacted execution command, exit status, and redacted/truncated stdout and stderr. Do not promote `data/matrix.json` claims from a single inconclusive run; retain reproducible probe artifacts and the tested agent version.
 
