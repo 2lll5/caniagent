@@ -20,6 +20,8 @@ Verdicts are deliberately conservative:
 - `inconclusive`: the agent could not run successfully, or structured output parsed but the deterministic marker was not observed.
 - `unknown`: no documented adapter is encoded.
 
+**Current evidence limitation:** The prompt itself contains the expected marker, and `classifyStructuredOutput()` currently searches for that marker anywhere in the serialized parsed JSON/JSONL. A CLI that includes an input/prompt-echo event can therefore yield a false `pass` even if the model response never contained the marker. A `pass` currently demonstrates parseable captured output with a marker somewhere in it, **not** verified model-response provenance or reliable provider support. Do not promote `data/matrix.json` from this signal alone; corroborate with an independently identified final model-response field/event and retain the agent version. This limitation is tracked in [#101](https://github.com/2lll5/caniagent/issues/101) until a code fix and regression tests are merged.
+
 A probe result is evidence, not an automatic compatibility-matrix update. Do not change `data/matrix.json` from a single local run; record the agent version and reproduce the behavior before changing a support claim.
 
 Write an artifact with:
