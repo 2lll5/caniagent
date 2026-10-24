@@ -22,6 +22,8 @@ Verdicts are deliberately conservative:
 
 **Current evidence limitation:** The prompt itself contains the expected marker, and `classifyStructuredOutput()` currently searches for that marker anywhere in the serialized parsed JSON/JSONL. A CLI that includes an input/prompt-echo event can therefore yield a false `pass` even if the model response never contained the marker. A `pass` currently demonstrates parseable captured output with a marker somewhere in it, **not** verified model-response provenance or reliable provider support. Do not promote `data/matrix.json` from this signal alone; corroborate with an independently identified final model-response field/event and retain the agent version. This limitation is tracked in [#101](https://github.com/2lll5/caniagent/issues/101) until a code fix and regression tests are merged.
 
+**Known false-`fail` limitation:** The probe currently redacts and truncates stdout to 12,000 characters **before parsing it**. A complete, valid JSON/JSONL response can be cut mid-record and incorrectly reported as `fail` with `parseable: false`. Until [#103](https://github.com/2lll5/caniagent/issues/103) is fixed and tested, do not interpret `fail` alone as proof that a provider violated its structured-output contract. Investigate locally without publishing unredacted stdout or changing compatibility claims from this result.
+
 A probe result is evidence, not an automatic compatibility-matrix update. Do not change `data/matrix.json` from a single local run; record the agent version and reproduce the behavior before changing a support claim.
 
 Write an artifact with:
