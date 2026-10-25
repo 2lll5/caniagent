@@ -136,6 +136,23 @@ test("adapter-specific model response fields are the only positive evidence", ()
   assert.equal(classifyStructuredOutput(JSON.stringify({ type: "unknown", debug: marker }), "json", marker, "success", "gemini-cli").verdict, "inconclusive");
 });
 
+test("unknown diagnostic events and explicit error results cannot establish marker provenance", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const [agent, value] of [
+    [undefined, { type: "diagnostic", response: marker }],
+    [undefined, { type: "result", is_error: true, result: marker }],
+    ["gemini-cli", { type: "result", is_error: true, response: marker }]
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  // Existing direct-parser callers retain supported positive response envelopes.
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", result: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker, "success", "gemini-cli").verdict, "pass");
+});
+
 test("real child-process prompt echo stays inconclusive while a Codex agent message passes", () => {
   const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-provenance-"));
