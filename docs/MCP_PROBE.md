@@ -2,7 +2,7 @@
 
 `npm run probe:mcp -- --output=artifacts/mcp-probe.json` runs an opt-in behavior probe for the MCP client row in the compatibility matrix.
 
-The probe creates a temporary workspace and home for each supported agent, configures a dependency-free local stdio MCP server named `caniagent_echo`, records the installed agent version, and asks the agent to call the echo tool with a deterministic marker. Temporary files are removed after each run. It does not modify the developer's normal agent configuration.
+The probe creates a temporary workspace and home for each supported agent, configures a dependency-free local stdio MCP server named `caniagent_echo`, records the installed agent version, and asks the agent to call the echo tool with a deterministic marker. Temporary files are removed after each run. The fixture writes to temporary paths, but the invoked agent CLI may still consult configuration paths inherited from the caller (see the isolation limitation below).
 
 ## Verdicts
 
@@ -20,5 +20,7 @@ The JSON evidence records platform, Node version, agent version command, exact r
 ## Isolation and credentials
 
 The MCP server itself requires no network access, API key, package install, or external service. Agent execution may still require the provider's normal authentication and may consume provider quota. The probe redirects `HOME`, `USERPROFILE`, and XDG config/data/state paths to temporary directories. Output passes through the shared probe redactor before it is persisted.
+
+**Isolation limitation (current implementation):** The probe copies the caller's environment and redirects `HOME`, `USERPROFILE`, and XDG config/data/state directories, but does not yet override `CODEX_HOME` or `CLAUDE_CONFIG_DIR`. If either variable points outside the temporary home, the corresponding CLI may read existing user configuration, so the run is **not guaranteed to be configuration-isolated**. Use a controlled environment and do not treat such results as clean-room compatibility evidence. The MCP-specific fix is tracked in [#99](https://github.com/2lll5/caniagent/issues/99); related non-MCP probes are tracked in [#100](https://github.com/2lll5/caniagent/issues/100).
 
 The generated configurations use the documented project/user configuration surfaces for Codex, Claude Code, Gemini CLI, and OpenCode. Because those CLIs evolve independently, a configuration parse failure should remain `inconclusive` until the adapter is updated and re-tested.
