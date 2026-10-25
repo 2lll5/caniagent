@@ -32,10 +32,10 @@ export function modelResponseTexts(value, agent) {
   if (agent === "codex") return value.type === "item.completed" && value.item?.type === "agent_message" && typeof value.item.text === "string" ? [value.item.text] : [];
   if (agent === "opencode") return value.type === "text" && value.part?.type === "text" && typeof value.part.text === "string" ? [value.part.text] : [];
   if (agent === "claude-code") return value.type === "result" && value.is_error !== true && typeof value.result === "string" ? [value.result] : [];
-  if (agent === "gemini-cli") return (!value.type || value.type === "result") && typeof value.response === "string" ? [value.response] : [];
+  if (agent === "gemini-cli") return (!value.type || value.type === "result") && value.is_error !== true && typeof value.response === "string" ? [value.response] : [];
   // Backward-compatible, conservative fallback for direct parser callers.
   // Production probes always supply the agent adapter.
-  if (["request", "input", "prompt", "user"].includes(value.type)) return [];
+  // Unknown events and explicit error results cannot establish response provenance.\n  if (value.is_error === true || (value.type && value.type !== "result")) return [];
   if (typeof value.response === "string") return [value.response];
   if (value.type === "result" && typeof value.result === "string") return [value.result];
   if (value.type === "result" && typeof value.text === "string") return [value.text];
