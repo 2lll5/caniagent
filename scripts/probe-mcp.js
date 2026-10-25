@@ -56,8 +56,20 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-function isolatedEnvironment(home) {
-  return { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_DATA_HOME: path.join(home, ".local", "share"), XDG_STATE_HOME: path.join(home, ".local", "state") };
+// Keep vendor-specific configuration in the same temporary home as the
+// MCP fixture. Inherited CODEX_HOME / CLAUDE_CONFIG_DIR would otherwise
+// override HOME and make the probe consult the caller's real configuration.
+export function isolatedMcpEnvironment(home, inherited = process.env) {
+  return {
+    ...inherited,
+    HOME: home,
+    USERPROFILE: home,
+    CODEX_HOME: path.join(home, ".codex"),
+    CLAUDE_CONFIG_DIR: path.join(home, ".claude"),
+    XDG_CONFIG_HOME: path.join(home, ".config"),
+    XDG_DATA_HOME: path.join(home, ".local", "share"),
+    XDG_STATE_HOME: path.join(home, ".local", "state")
+  };
 }
 
 function main() {
@@ -71,7 +83,7 @@ function main() {
       const home = path.join(temp, "home");
       fs.mkdirSync(home, { recursive: true });
       const fixture = createMcpFixture(temp, agent.id);
-      const env = isolatedEnvironment(home);
+      const env = isolatedMcpEnvironment(home);
       const version = run(agent.command, ["--version"], { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = `Call the caniagent_echo MCP tool exactly once with text ${MCP_MARKER}. Reply with only the tool result.`;
       const execution = version.outcome === "not_found"
