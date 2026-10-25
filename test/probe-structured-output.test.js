@@ -79,6 +79,11 @@ test("structured probe classifies raw stdout without persisting it", () => {
       name: "small JSON with a synthetic secret", format: "json",
       stdout: JSON.stringify({ response: marker, debug: secret }),
       rawVerdict: "pass", evidenceVerdict: "pass"
+    },
+    {
+      name: "valid JSON beyond Node's default 1 MiB child buffer", format: "json",
+      stdout: JSON.stringify({ padding: "x".repeat(1_100_000), response: marker }),
+      rawVerdict: "pass", evidenceVerdict: "fail"
     }
   ];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-raw-"));

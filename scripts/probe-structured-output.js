@@ -38,7 +38,12 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
 }
 
 function run(command, args, { cwd, env, timeout = 60000, onStdout } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+  // Valid JSON/JSONL can exceed Node's 1 MiB default sync buffer.
+  // Keep capture bounded; only redacted/truncated evidence is persisted.
+  const result = spawnSync(command, args, {
+    cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32",
+    maxBuffer: 8 * 1024 * 1024
+  });
   const outcome = classifyProbeExecution(result);
   // Classify the unmodified stdout before evidence redaction/truncation.
   // Only the small classification result escapes this callback.
