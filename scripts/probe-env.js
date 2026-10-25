@@ -3,8 +3,13 @@ import path from "node:path";
 // Keep behavior-probe configuration in its temporary home, not the caller's.
 // Unrelated environment variables (including authentication) are preserved.
 export function isolatedProbeEnvironment(home, inherited = process.env) {
+  // Inherited Node preloads can execute before a probe's agent CLI starts.
+  // Remove case variants as Windows environment keys are case-insensitive.
+  const safeInherited = Object.fromEntries(
+    Object.entries(inherited).filter(([key]) => key.toUpperCase() !== "NODE_OPTIONS")
+  );
   return {
-    ...inherited,
+    ...safeInherited,
     HOME: home,
     USERPROFILE: home,
     CODEX_HOME: path.join(home, ".codex"),

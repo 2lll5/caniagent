@@ -66,3 +66,30 @@ for (const name of ["probe-nested", "probe-skills", "probe-structured-output", "
     assert.doesNotMatch(source, /function isolatedEnvironment\(/);
   });
 }
+
+test("behavior probe strips inherited NODE_OPTIONS, including mixed-case keys", () => {
+  const inherited = Object.freeze({
+    NODE_OPTIONS: "--require=__caniagent_nonexistent_preload__",
+    nOdE_OpTiOnS: "--import=__caniagent_nonexistent_import__",
+    NODE_EXTRA_CA_CERTS: "/enterprise/ca.pem",
+    CANIAGENT_SENTINEL: "preserve-me"
+  });
+  const env = isolatedProbeEnvironment(path.join(os.tmpdir(), "caniagent-probe-node-options"), inherited);
+  assert.equal(Object.keys(env).some((key) => key.toUpperCase() === "NODE_OPTIONS"), false);
+  assert.equal(env.NODE_EXTRA_CA_CERTS, "/enterprise/ca.pem");
+  assert.equal(env.CANIAGENT_SENTINEL, "preserve-me");
+  assert.equal(inherited.NODE_OPTIONS, "--require=__caniagent_nonexistent_preload__");
+  assert.equal(inherited.nOdE_OpTiOnS, "--import=__caniagent_nonexistent_import__");
+});
+
+test("behavior probe child process ignores inherited Node preload options", () => {
+  const env = isolatedProbeEnvironment(path.join(os.tmpdir(), "caniagent-probe-node-child"), {
+    NODE_OPTIONS: "--require=__caniagent_nonexistent_preload__"
+  });
+  const child = spawnSync(process.execPath, ["-e", 'process.stdout.write("CHILD_OK")'], {
+    env, encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.error, undefined, child.error?.message);
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stdout, "CHILD_OK");
+});
