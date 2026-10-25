@@ -102,3 +102,58 @@ test("structured probe classifies raw stdout without persisting it", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("prompt echoes and nested metadata cannot supply response provenance", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    [JSON.stringify({ type: "request", prompt: marker, response: marker }), "json"],
+    [JSON.stringify({ metadata: { prompt: marker, response: marker } }), "json"],
+    [[{ type: "input", text: marker }, { type: "result", text: "other" }].map(JSON.stringify).join("\\n"), "jsonl"],
+    [JSON.stringify({ response: `I was asked to say ${marker}, but did not` }), "json"]
+  ];
+  for (const [output, format] of cases) {
+    assert.deepEqual(classifyStructuredOutput(output, format, marker), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+});
+
+test("adapter-specific model response fields are the only positive evidence", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", { type: "item.completed", item: { type: "agent_message", text: marker } }],
+    ["opencode", "jsonl", { type: "text", part: { type: "text", text: marker } }],
+    ["claude-code", "json", { type: "result", result: marker }],
+    ["gemini-cli", "json", { response: marker }]
+  ];
+  for (const [agent, format, response] of cases) {
+    assert.equal(classifyStructuredOutput(JSON.stringify(response), format, marker, "success", agent).verdict, "pass", agent);
+  }
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "item.completed", item: { type: "user_message", text: marker } }), "jsonl", marker, "success", "codex").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "input", part: { type: "text", text: marker } }), "jsonl", marker, "success", "opencode").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", is_error: true, result: marker }), "json", marker, "success", "claude-code").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "request", response: marker }), "json", marker, "success", "gemini-cli").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "unknown", debug: marker }), "json", marker, "success", "gemini-cli").verdict, "inconclusive");
+});
+
+test("real child-process prompt echo stays inconclusive while a Codex agent message passes", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-provenance-"));
+  try {
+    for (const [name, events, expected] of [
+      ["echo", [{ type: "input", text: marker }, { type: "turn.completed", usage: {} }], "inconclusive"],
+      ["answer", [{ type: "input", text: marker }, { type: "item.completed", item: { type: "agent_message", text: marker } }], "pass"]
+    ]) {
+      const fixture = path.join(dir, `${name}.cjs`);
+      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(events.map(JSON.stringify).join("\\n"))});\\n`);
+      const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
+        format: "jsonl", marker, agent: "codex"
+      });
+      assert.equal(execution.outcome, "success", name);
+      assert.equal(classification.verdict, expected, name);
+      assert.equal(Object.hasOwn(execution, "rawStdout"), false);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
