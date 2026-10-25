@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
+import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const NESTED_PROBE_SPECS = {
   codex: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
@@ -50,16 +51,6 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-function isolatedEnvironment(home) {
-  return {
-    ...process.env,
-    HOME: home,
-    USERPROFILE: home,
-    XDG_CONFIG_HOME: path.join(home, ".config"),
-    XDG_DATA_HOME: path.join(home, ".local", "share"),
-    XDG_STATE_HOME: path.join(home, ".local", "state")
-  };
-}
 
 function main() {
   const matrix = loadMatrix();
@@ -72,7 +63,7 @@ function main() {
     try {
       const home = path.join(temp, "home");
       fs.mkdirSync(home, { recursive: true });
-      const env = isolatedEnvironment(home);
+      const env = isolatedProbeEnvironment(home);
       const fixture = createNestedInstructionFixture(temp, agent.id);
       const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.";
