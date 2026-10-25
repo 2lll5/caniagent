@@ -145,7 +145,7 @@ test("real child-process prompt echo stays inconclusive while a Codex agent mess
       ["answer", [{ type: "input", text: marker }, { type: "item.completed", item: { type: "agent_message", text: marker } }], "pass"]
     ]) {
       const fixture = path.join(dir, `${name}.cjs`);
-      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(events.map(JSON.stringify).join("\\n"))});\\n`);
+      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(events.map(JSON.stringify).join("\n"))});\n`);
       const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
         format: "jsonl", marker, agent: "codex"
       });
