@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,6 +58,30 @@ test("MCP probe overrides inherited vendor config homes without mutating the cal
   assert.equal(env.XDG_DATA_HOME, path.join(home, ".local", "share"));
   assert.equal(env.XDG_STATE_HOME, path.join(home, ".local", "state"));
   assert.equal(env.SENTINEL, "preserve-me");
+  assert.equal(inherited.CODEX_HOME, "/external/codex");
+  assert.equal(inherited.CLAUDE_CONFIG_DIR, "/external/claude");
+});
+
+test("MCP probe child process observes isolated vendor config paths", () => {
+  const home = path.join(os.tmpdir(), "caniagent-mcp-child with spaces");
+  const inherited = Object.freeze({
+    CODEX_HOME: "/external/codex",
+    CLAUDE_CONFIG_DIR: "/external/claude",
+    SENTINEL: "preserved"
+  });
+  const env = isolatedMcpEnvironment(home, inherited);
+  const child = spawnSync(process.execPath, [
+    "-e",
+    "process.stdout.write(JSON.stringify({ codex: process.env.CODEX_HOME, claude: process.env.CLAUDE_CONFIG_DIR, sentinel: process.env.SENTINEL }))"
+  ], { env, encoding: "utf8", timeout: 5000 });
+
+  assert.equal(child.error, undefined, child.error?.message);
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), {
+    codex: path.join(home, ".codex"),
+    claude: path.join(home, ".claude"),
+    sentinel: "preserved"
+  });
   assert.equal(inherited.CODEX_HOME, "/external/codex");
   assert.equal(inherited.CLAUDE_CONFIG_DIR, "/external/claude");
 });
