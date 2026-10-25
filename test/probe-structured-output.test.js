@@ -176,3 +176,57 @@ test("real child-process prompt echo stays inconclusive while a Codex agent mess
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("explicit failure events invalidate earlier response markers", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "turn.failed", error: { message: "synthetic failure" } }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "error", error: { message: "synthetic failure" } }
+    ]],
+    ["claude-code", "json", [
+      { type: "result", subtype: "error_max_turns", is_error: false, result: marker }
+    ]],
+    ["gemini-cli", "json", [
+      { type: "error", response: marker }
+    ]],
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "diagnostic", is_error: true }
+    ]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.deepEqual(classifyStructuredOutput(output, format, marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    }, agent);
+  }
+});
+
+test("known successful responses remain valid and unknown adapters fail closed", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "turn.completed" }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "step_finish" }
+    ]],
+    ["claude-code", "json", [{ type: "result", subtype: "success", result: marker }]],
+    ["gemini-cli", "json", [{ response: marker }]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict, "pass", agent);
+  }
+  assert.deepEqual(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker, "success", "future-agent"), {
+    parseable: true, markerObserved: false, verdict: "inconclusive"
+  });
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
+});

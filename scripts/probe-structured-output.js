@@ -33,6 +33,8 @@ export function modelResponseTexts(value, agent) {
   if (agent === "opencode") return value.type === "text" && value.part?.type === "text" && typeof value.part.text === "string" ? [value.part.text] : [];
   if (agent === "claude-code") return value.type === "result" && value.is_error !== true && typeof value.result === "string" ? [value.result] : [];
   if (agent === "gemini-cli") return (!value.type || value.type === "result") && value.is_error !== true && typeof value.response === "string" ? [value.response] : [];
+  // Unknown named adapters must not inherit the direct-parser fallback.
+  if (agent !== undefined) return [];
   // Backward-compatible, conservative fallback for direct parser callers.
   // Production probes always supply the agent adapter.
   // Reject errors and unknown response envelopes, but preserve known event adapters.
@@ -45,6 +47,18 @@ export function modelResponseTexts(value, agent) {
   return [];
 }
 
+// Never accept a prior model message as a successful result when the same
+// structured stream explicitly reports a failed turn or an error result.
+function hasExplicitStructuredFailure(value, agent) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value.is_error === true) return true;
+  if (agent === "codex") return value.type === "turn.failed";
+  if (agent === "opencode" || agent === "gemini-cli") return value.type === "error";
+  if (agent === "claude-code") return value.type === "result" &&
+    typeof value.subtype === "string" && value.subtype.startsWith("error_");
+  return false;
+}
+
 export function classifyStructuredOutput(output, format, marker, executionOutcome = "success", agent) {
   if (executionOutcome !== "success") return { parseable: false, markerObserved: false, verdict: "inconclusive" };
   let values;
@@ -53,7 +67,10 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   } catch {
     return { parseable: false, markerObserved: false, verdict: "fail" };
   }
-  const markerObserved = values.some((value) => modelResponseTexts(value, agent).some((text) => text.trim() === marker));
+  // A structured failure event invalidates an earlier marker even if the
+  // wrapper process exits successfully (some CLIs return zero on turn errors).
+  const failed = values.some((value) => hasExplicitStructuredFailure(value, agent));
+  const markerObserved = !failed && values.some((value) => modelResponseTexts(value, agent).some((text) => text.trim() === marker));
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 
