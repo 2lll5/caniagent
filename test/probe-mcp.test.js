@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult } from "../scripts/probe-mcp.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult, isolatedMcpEnvironment } from "../scripts/probe-mcp.js";
 
 test("MCP echo server exposes and calls deterministic tool", () => {
   const listed = handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -36,5 +36,42 @@ test("MCP fixtures configure only isolated project/home paths", () => {
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }
+  }
+});
+
+test("MCP probe overrides inherited vendor config homes without mutating the caller environment", () => {
+  const home = path.join(os.tmpdir(), "caniagent-mcp-isolation with spaces");
+  const inherited = Object.freeze({
+    CODEX_HOME: "/external/codex",
+    CLAUDE_CONFIG_DIR: "/external/claude",
+    XDG_CONFIG_HOME: "/external/config",
+    SENTINEL: "preserve-me"
+  });
+  const env = isolatedMcpEnvironment(home, inherited);
+
+  assert.equal(env.CODEX_HOME, path.join(home, ".codex"));
+  assert.equal(env.CLAUDE_CONFIG_DIR, path.join(home, ".claude"));
+  assert.equal(env.HOME, home);
+  assert.equal(env.USERPROFILE, home);
+  assert.equal(env.XDG_CONFIG_HOME, path.join(home, ".config"));
+  assert.equal(env.XDG_DATA_HOME, path.join(home, ".local", "share"));
+  assert.equal(env.XDG_STATE_HOME, path.join(home, ".local", "state"));
+  assert.equal(env.SENTINEL, "preserve-me");
+  assert.equal(inherited.CODEX_HOME, "/external/codex");
+  assert.equal(inherited.CLAUDE_CONFIG_DIR, "/external/claude");
+});
+
+test("MCP Codex fixture resides under the isolated CODEX_HOME and Claude keeps project config", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-isolated-fixture-"));
+  try {
+    const home = path.join(temp, "home");
+    const env = isolatedMcpEnvironment(home, { CODEX_HOME: "/external/codex", CLAUDE_CONFIG_DIR: "/external/claude" });
+    createMcpFixture(temp, "codex", "/tmp/echo-server.js");
+    assert.equal(fs.existsSync(path.join(env.CODEX_HOME, "config.toml")), true);
+    createMcpFixture(temp, "claude-code", "/tmp/echo-server.js");
+    assert.equal(fs.existsSync(path.join(temp, "workspace", ".mcp.json")), true);
+    assert.equal(env.CLAUDE_CONFIG_DIR, path.join(home, ".claude"));
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
   }
 });
