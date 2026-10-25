@@ -52,10 +52,11 @@ export function modelResponseTexts(value, agent) {
 function hasExplicitStructuredFailure(value, agent) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   if (value.is_error === true) return true;
-  if (agent === "codex") return value.type === "turn.failed";
-  if (agent === "opencode" || agent === "gemini-cli") return value.type === "error";
-  if (agent === "claude-code") return value.type === "result" &&
-    typeof value.subtype === "string" && value.subtype.startsWith("error_");
+  // A terminal failure invalidates prior response markers for every adapter,
+  // including callers that omit the agent name.
+  if (value.type === "error" || value.type === "turn.failed") return true;
+  if (value.type === "result" && typeof value.subtype === "string" &&
+      value.subtype.startsWith("error_")) return true;
   return false;
 }
 

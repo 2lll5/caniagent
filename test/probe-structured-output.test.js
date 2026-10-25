@@ -207,6 +207,40 @@ test("explicit failure events invalidate earlier response markers", () => {
   }
 });
 
+test("terminal failures invalidate markers across adapters and direct parsing", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "error", message: "synthetic failure" }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "turn.failed", error: { message: "synthetic failure" } }
+    ]],
+    [undefined, "jsonl", [
+      { type: "result", text: marker },
+      { type: "error", message: "synthetic failure" }
+    ]],
+    [undefined, "json", [
+      { type: "result", subtype: "error_max_turns", result: marker }
+    ]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.deepEqual(classifyStructuredOutput(output, format, marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    }, agent ?? "direct-parser");
+  }
+  // Non-failure events and legitimate responses must still pass.
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", result: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", subtype: "success", result: marker }), "json", marker, "success", "claude-code").verdict, "pass");
+  assert.equal(classifyStructuredOutput([
+    { type: "item.completed", item: { type: "agent_message", text: marker } },
+    { type: "turn.completed" }
+  ].map(JSON.stringify).join("\n"), "jsonl", marker, "success", "codex").verdict, "pass");
+});
+
 test("known successful responses remain valid and unknown adapters fail closed", () => {
   const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
   const cases = [
