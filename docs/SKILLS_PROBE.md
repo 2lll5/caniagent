@@ -21,13 +21,15 @@ The current adapters cover these documented paths:
 | Gemini CLI | `.gemini/skills/<name>/SKILL.md` | `~/.gemini/skills/<name>/SKILL.md` |
 | OpenCode | `.opencode/skills/<name>/SKILL.md` | `~/.config/opencode/skills/<name>/SKILL.md` |
 
-Gemini CLI now documents Agent Skills discovery at both `.gemini/skills/` and the interoperable `.agents/skills/` alias for workspace and user scopes. The probe uses the Gemini-native `.gemini/skills/` path and `--approval-mode=yolo` so the documented activation-consent step can complete in non-interactive `-p` mode. This flag is confined to the temporary probe workspace and isolated home.
+Gemini CLI now documents Agent Skills discovery at both `.gemini/skills/` and the interoperable `.agents/skills/` alias for workspace and user scopes. The probe uses the Gemini-native `.gemini/skills/` path and `--approval-mode=yolo` so the documented activation-consent step can complete in non-interactive `-p` mode. This flag bypasses normal approval prompts; a temporary workspace and redirected configuration paths are **not** an execution sandbox. Run the opt-in probe only with trusted fixtures and appropriate external execution controls.
 
 The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code user scope is deliberately not guessed here until its current path is independently evidenced for this probe. Missing adapters must not be interpreted as unsupported behavior.
 
 ## Isolation and evidence
 
-Each run redirects `HOME`, `USERPROFILE`, and XDG config/data/state directories into a temporary directory. User-scope fixtures are created only below that isolated home, never below the real user home. The entire temporary fixture is removed after each scope run.
+Each run redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows `APPDATA`/`LOCALAPPDATA`, and XDG config/data/state/cache directories into a temporary home. Inherited `NODE_OPTIONS` (including case variants) is removed to avoid Node.js preload hooks changing CLI behavior. User-scope fixtures are created under the temporary home, and the fixture is removed after each scope run.
+
+This environment redirection reduces accidental reuse of normal agent configuration; it does **not** guarantee that an agent cannot read or write files outside the fixture. Other environment variables, including credentials, proxies, and `NODE_EXTRA_CA_CERTS`, remain inherited, while enterprise integrations that require `NODE_OPTIONS` may behave differently. Use an external sandbox if stronger isolation is required.
 
 Each result records the agent version, OS/platform metadata, exact redacted command, exit status, redacted/truncated stdout and stderr, scope, and exact discovery path. Project and user scopes run independently so one successful discovery cannot satisfy another scope's evidence.
 
