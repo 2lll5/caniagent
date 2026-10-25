@@ -269,3 +269,22 @@ test("known successful responses remain valid and unknown adapters fail closed",
   });
   assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
 });
+
+test("only the last model response can establish the structured marker", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const codexReply = (text) => ({ type: "item.completed", item: { type: "agent_message", text } });
+  const openCodeReply = (text) => ({ type: "text", part: { type: "text", text } });
+  const cases = [
+    ["codex", [codexReply(marker), codexReply("not the marker")], "inconclusive"],
+    ["codex", [codexReply("draft"), codexReply(marker)], "pass"],
+    ["codex", [codexReply(marker), { type: "input", text: "not the marker" }], "pass"],
+    ["opencode", [openCodeReply(marker), openCodeReply("additional text")], "inconclusive"],
+    ["opencode", [openCodeReply("draft"), openCodeReply(marker)], "pass"],
+    [undefined, [{ type: "result", text: marker }, { type: "result", text: "different" }], "inconclusive"]
+  ];
+  for (const [agent, events, verdict] of cases) {
+    const stream = events.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(stream, "jsonl", marker, "success", agent).verdict,
+      verdict, agent ?? "direct-parser");
+  }
+});

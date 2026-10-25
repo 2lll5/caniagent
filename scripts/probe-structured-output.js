@@ -71,7 +71,13 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   // A structured failure event invalidates an earlier marker even if the
   // wrapper process exits successfully (some CLIs return zero on turn errors).
   const failed = values.some((value) => hasExplicitStructuredFailure(value, agent));
-  const markerObserved = !failed && values.some((value) => modelResponseTexts(value, agent).some((text) => text.trim() === marker));
+  // The final model response, not an earlier intermediate message, must
+  // match the marker. Later diagnostic events do not replace model replies.
+  const finalResponse = values.reduce((last, value) => {
+    const texts = modelResponseTexts(value, agent);
+    return texts.length ? texts[texts.length - 1] : last;
+  }, undefined);
+  const markerObserved = !failed && finalResponse?.trim() === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 
