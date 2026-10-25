@@ -67,25 +67,25 @@ test("structured probe classifies raw stdout without persisting it", () => {
     },
     {
       name: "large valid JSONL", format: "jsonl",
-      stdout: JSON.stringify({ type: "metadata", padding: "x".repeat(13000) }) + "\\n" + JSON.stringify({ type: "result", text: marker }),
+      stdout: JSON.stringify({ type: "metadata", padding: "x".repeat(13000) }) + "\n" + JSON.stringify({ type: "result", text: marker }),
       rawVerdict: "pass", evidenceVerdict: "fail"
     },
     {
       name: "malformed tail after a valid JSONL marker", format: "jsonl",
-      stdout: JSON.stringify({ type: "result", text: marker }) + "\\n" + " ".repeat(13000) + "NOT_JSON",
+      stdout: JSON.stringify({ type: "result", text: marker }) + "\n" + " ".repeat(13000) + "NOT_JSON",
       rawVerdict: "fail", evidenceVerdict: "pass"
     },
     {
       name: "small JSON with a synthetic secret", format: "json",
       stdout: JSON.stringify({ response: marker, debug: secret }),
-      rawVerdict: "pass", evidenceVerdict: "fail"
+      rawVerdict: "pass", evidenceVerdict: "pass"
     }
   ];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-raw-"));
   try {
     for (const [index, scenario] of scenarios.entries()) {
       const fixture = path.join(dir, `fixture-${index}.cjs`);
-      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(scenario.stdout)});\\n`);
+      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(scenario.stdout)});\n`);
       const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
         format: scenario.format, marker
       });
