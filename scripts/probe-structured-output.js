@@ -25,7 +25,26 @@ export function parseStructuredOutput(output, format) {
   throw new Error(`Unknown structured output format: ${format}`);
 }
 
-export function classifyStructuredOutput(output, format, marker, executionOutcome = "success") {
+// Only known model-response fields are admissible. Input echoes and arbitrary
+// nested metadata are never sufficient to prove that the model replied.
+export function modelResponseTexts(value, agent) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  if (agent === "codex") return value.type === "item.completed" && value.item?.type === "agent_message" && typeof value.item.text === "string" ? [value.item.text] : [];
+  if (agent === "opencode") return value.type === "text" && value.part?.type === "text" && typeof value.part.text === "string" ? [value.part.text] : [];
+  if (agent === "claude-code") return value.type === "result" && value.is_error !== true && typeof value.result === "string" ? [value.result] : [];
+  if (agent === "gemini-cli") return (!value.type || value.type === "result") && typeof value.response === "string" ? [value.response] : [];
+  // Backward-compatible, conservative fallback for direct parser callers.
+  // Production probes always supply the agent adapter.
+  if (["request", "input", "prompt", "user"].includes(value.type)) return [];
+  if (typeof value.response === "string") return [value.response];
+  if (value.type === "result" && typeof value.result === "string") return [value.result];
+  if (value.type === "result" && typeof value.text === "string") return [value.text];
+  if (value.type === "item.completed" && value.item?.type === "agent_message" && typeof value.item.text === "string") return [value.item.text];
+  if (value.type === "text" && value.part?.type === "text" && typeof value.part.text === "string") return [value.part.text];
+  return [];
+}
+
+export function classifyStructuredOutput(output, format, marker, executionOutcome = "success", agent) {
   if (executionOutcome !== "success") return { parseable: false, markerObserved: false, verdict: "inconclusive" };
   let values;
   try {
@@ -33,7 +52,7 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   } catch {
     return { parseable: false, markerObserved: false, verdict: "fail" };
   }
-  const markerObserved = values.some((value) => JSON.stringify(value).includes(marker));
+  const markerObserved = values.some((value) => modelResponseTexts(value, agent).some((text) => text.trim() === marker));
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 
@@ -55,12 +74,12 @@ function run(command, args, { cwd, env, timeout = 60000, onStdout } = {}) {
 }
 
 // Raw stdout is never added to the returned execution object or persisted artifact.
-export function runStructuredOutput(command, args, { format, marker, ...options }) {
+export function runStructuredOutput(command, args, { format, marker, agent, ...options }) {
   let classification;
   const execution = run(command, args, {
     ...options,
     onStdout: (rawStdout, outcome) => {
-      classification = classifyStructuredOutput(rawStdout, format, marker, outcome);
+      classification = classifyStructuredOutput(rawStdout, format, marker, outcome, agent);
     }
   });
   return { execution, ...classification };
@@ -98,7 +117,7 @@ function main() {
       const prompt = `Reply with exactly this marker and nothing else: ${marker}`;
       const version = run(agent.command, spec.versionArgs, { cwd: workspace, env, timeout: 8000 });
       const structured = runStructuredOutput(agent.command, spec.args(prompt), {
-        cwd: workspace, env, format: spec.format, marker
+        cwd: workspace, env, format: spec.format, marker, agent: agent.id
       });
       results.push({
         agent: agent.id,
