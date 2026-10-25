@@ -56,19 +56,30 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-// Keep vendor-specific configuration in the same temporary home as the
-// MCP fixture. Inherited CODEX_HOME / CLAUDE_CONFIG_DIR would otherwise
-// override HOME and make the probe consult the caller's real configuration.
+// Isolate every known vendor/OS config home and prevent inherited Node
+// preloads from changing the probe subprocess before the CLI starts.
+// Windows environment names are case-insensitive, so remove aliases first.
 export function isolatedMcpEnvironment(home, inherited = process.env) {
+  const isolatedKeys = new Set([
+    "HOME", "USERPROFILE", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
+    "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    "XDG_STATE_HOME", "XDG_CACHE_HOME", "NODE_OPTIONS"
+  ]);
+  const safeInherited = Object.fromEntries(
+    Object.entries(inherited).filter(([key]) => !isolatedKeys.has(key.toUpperCase()))
+  );
   return {
-    ...inherited,
+    ...safeInherited,
     HOME: home,
     USERPROFILE: home,
     CODEX_HOME: path.join(home, ".codex"),
     CLAUDE_CONFIG_DIR: path.join(home, ".claude"),
+    APPDATA: path.join(home, "AppData", "Roaming"),
+    LOCALAPPDATA: path.join(home, "AppData", "Local"),
     XDG_CONFIG_HOME: path.join(home, ".config"),
     XDG_DATA_HOME: path.join(home, ".local", "share"),
-    XDG_STATE_HOME: path.join(home, ".local", "state")
+    XDG_STATE_HOME: path.join(home, ".local", "state"),
+    XDG_CACHE_HOME: path.join(home, ".cache")
   };
 }
 
