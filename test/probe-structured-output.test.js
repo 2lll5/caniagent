@@ -108,7 +108,7 @@ test("prompt echoes and nested metadata cannot supply response provenance", () =
   const cases = [
     [JSON.stringify({ type: "request", prompt: marker, response: marker }), "json"],
     [JSON.stringify({ metadata: { prompt: marker, response: marker } }), "json"],
-    [[{ type: "input", text: marker }, { type: "result", text: "other" }].map(JSON.stringify).join("\\n"), "jsonl"],
+    [[{ type: "input", text: marker }, { type: "result", text: "other" }].map(JSON.stringify).join("\n"), "jsonl"],
     [JSON.stringify({ response: `I was asked to say ${marker}, but did not` }), "json"]
   ];
   for (const [output, format] of cases) {
