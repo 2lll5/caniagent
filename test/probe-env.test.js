@@ -93,3 +93,20 @@ test("behavior probe child process ignores inherited Node preload options", () =
   assert.equal(child.status, 0, child.stderr);
   assert.equal(child.stdout, "CHILD_OK");
 });
+
+test("behavior probe removes mixed-case aliases of every isolated path on Windows", () => {
+  const keys = [...Object.keys(overrides), "NODE_OPTIONS"];
+  const inherited = Object.freeze(Object.fromEntries([
+    ...keys.map((key) => [key.toLowerCase(), `/outside/${key}`]),
+    ["CANIAGENT_SENTINEL", "preserve-me"],
+    ["NODE_EXTRA_CA_CERTS", "/enterprise/ca.pem"]
+  ]));
+  const env = isolatedProbeEnvironment(path.join(os.tmpdir(), "caniagent-case-variants"), inherited);
+  for (const key of keys) {
+    assert.equal(Object.keys(env).filter((name) => name.toUpperCase() === key).length, key === "NODE_OPTIONS" ? 0 : 1, key);
+    assert.equal(Object.hasOwn(env, key.toLowerCase()), false, key);
+    assert.equal(inherited[key.toLowerCase()], `/outside/${key}`);
+  }
+  assert.equal(env.CANIAGENT_SENTINEL, "preserve-me");
+  assert.equal(env.NODE_EXTRA_CA_CERTS, "/enterprise/ca.pem");
+});

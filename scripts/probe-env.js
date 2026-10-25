@@ -4,9 +4,15 @@ import path from "node:path";
 // Unrelated environment variables (including authentication) are preserved.
 export function isolatedProbeEnvironment(home, inherited = process.env) {
   // Inherited Node preloads can execute before a probe's agent CLI starts.
-  // Remove case variants as Windows environment keys are case-insensitive.
+  // Windows environment keys are case-insensitive: remove aliases of every
+  // overridden path as well as NODE_OPTIONS before adding isolated values.
+  const isolatedKeys = new Set([
+    "HOME", "USERPROFILE", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
+    "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    "XDG_STATE_HOME", "XDG_CACHE_HOME", "NODE_OPTIONS"
+  ]);
   const safeInherited = Object.fromEntries(
-    Object.entries(inherited).filter(([key]) => key.toUpperCase() !== "NODE_OPTIONS")
+    Object.entries(inherited).filter(([key]) => !isolatedKeys.has(key.toUpperCase()))
   );
   return {
     ...safeInherited,
