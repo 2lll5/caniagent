@@ -35,7 +35,8 @@ export function modelResponseTexts(value, agent) {
   if (agent === "gemini-cli") return (!value.type || value.type === "result") && value.is_error !== true && typeof value.response === "string" ? [value.response] : [];
   // Backward-compatible, conservative fallback for direct parser callers.
   // Production probes always supply the agent adapter.
-  // Unknown events and explicit error results cannot establish response provenance.\n  if (value.is_error === true || (value.type && value.type !== "result")) return [];
+  // Unknown events and explicit error results cannot establish response provenance.
+  if (value.is_error === true || (value.type && value.type !== "result")) return [];
   if (typeof value.response === "string") return [value.response];
   if (value.type === "result" && typeof value.result === "string") return [value.result];
   if (value.type === "result" && typeof value.text === "string") return [value.text];
