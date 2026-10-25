@@ -151,6 +151,8 @@ test("unknown diagnostic events and explicit error results cannot establish mark
   assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
   assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", result: marker }), "json", marker).verdict, "pass");
   assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker, "success", "gemini-cli").verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: marker } }), "jsonl", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "text", part: { type: "text", text: marker } }), "jsonl", marker).verdict, "pass");
 });
 
 test("real child-process prompt echo stays inconclusive while a Codex agent message passes", () => {
