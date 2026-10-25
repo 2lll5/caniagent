@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
+import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const STRUCTURED_OUTPUT_SPECS = {
   codex: { format: "jsonl", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--json", prompt] },
@@ -50,16 +51,6 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-function isolatedEnvironment(home) {
-  return {
-    ...process.env,
-    HOME: home,
-    USERPROFILE: home,
-    XDG_CONFIG_HOME: path.join(home, ".config"),
-    XDG_DATA_HOME: path.join(home, ".local", "share"),
-    XDG_STATE_HOME: path.join(home, ".local", "state")
-  };
-}
 
 function main() {
   const matrix = loadMatrix();
@@ -77,7 +68,7 @@ function main() {
       const workspace = path.join(temp, "workspace");
       fs.mkdirSync(home, { recursive: true });
       fs.mkdirSync(workspace, { recursive: true });
-      const env = isolatedEnvironment(home);
+      const env = isolatedProbeEnvironment(home);
       const marker = `CANIAGENT_STRUCTURED_${agent.id.replaceAll("-", "_").toUpperCase()}`;
       const prompt = `Reply with exactly this marker and nothing else: ${marker}`;
       const version = run(agent.command, spec.versionArgs, { cwd: workspace, env, timeout: 8000 });

@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult, isolatedMcpEnvironment } from "../scripts/probe-mcp.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult } from "../scripts/probe-mcp.js";
+import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("MCP echo server exposes and calls deterministic tool", () => {
   const listed = handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -48,7 +49,7 @@ test("MCP probe overrides inherited vendor config homes without mutating the cal
     XDG_CONFIG_HOME: "/external/config",
     SENTINEL: "preserve-me"
   });
-  const env = isolatedMcpEnvironment(home, inherited);
+  const env = isolatedProbeEnvironment(home, inherited);
 
   assert.equal(env.CODEX_HOME, path.join(home, ".codex"));
   assert.equal(env.CLAUDE_CONFIG_DIR, path.join(home, ".claude"));
@@ -69,7 +70,7 @@ test("MCP probe child process observes isolated vendor config paths", () => {
     CLAUDE_CONFIG_DIR: "/external/claude",
     SENTINEL: "preserved"
   });
-  const env = isolatedMcpEnvironment(home, inherited);
+  const env = isolatedProbeEnvironment(home, inherited);
   const child = spawnSync(process.execPath, [
     "-e",
     "process.stdout.write(JSON.stringify({ codex: process.env.CODEX_HOME, claude: process.env.CLAUDE_CONFIG_DIR, sentinel: process.env.SENTINEL }))"
@@ -98,7 +99,7 @@ test("MCP probe strips Node preloads and mixed-case vendor/Windows aliases", () 
     NODE_OPTIONS: "--require=__caniagent_nonexistent_preload__",
     SENTINEL: "preserved"
   });
-  const env = isolatedMcpEnvironment(home, inherited);
+  const env = isolatedProbeEnvironment(home, inherited);
   for (const key of [
     "HOME", "USERPROFILE", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
     "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
@@ -122,7 +123,7 @@ test("MCP Codex fixture resides under the isolated CODEX_HOME and Claude keeps p
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-isolated-fixture-"));
   try {
     const home = path.join(temp, "home");
-    const env = isolatedMcpEnvironment(home, { CODEX_HOME: "/external/codex", CLAUDE_CONFIG_DIR: "/external/claude" });
+    const env = isolatedProbeEnvironment(home, { CODEX_HOME: "/external/codex", CLAUDE_CONFIG_DIR: "/external/claude" });
     createMcpFixture(temp, "codex", "/tmp/echo-server.js");
     assert.equal(fs.existsSync(path.join(env.CODEX_HOME, "config.toml")), true);
     createMcpFixture(temp, "claude-code", "/tmp/echo-server.js");
