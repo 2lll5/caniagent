@@ -46,6 +46,27 @@ export function classifyMcpResult(execution, receipt = []) {
   return receipt.length === 1 && receipt[0]?.name === "caniagent_echo" && receipt[0]?.matched === true ? "pass" : "fail";
 }
 
+export function readMcpReceipt(receiptPath) {
+  try {
+    if (!fs.existsSync(receiptPath)) return [];
+    if (fs.statSync(receiptPath).size > 65536) return null;
+    const content = fs.readFileSync(receiptPath, "utf8");
+    if (!content) return [];
+    const lines = content.split("\n");
+    if (lines.at(-1) === "") lines.pop();
+    if (lines.some((line) => !line.trim())) return null;
+    const receipt = lines.map((line) => JSON.parse(line));
+    // A parseable JSONL record is not necessarily a valid server receipt.
+    // Reject unknown fields and types rather than turning corrupt evidence into a "fail".
+    return receipt.every((entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+      && Object.keys(entry).length === 2 && Object.hasOwn(entry, "name")
+      && Object.hasOwn(entry, "matched")
+      && (entry.name === "caniagent_echo" || entry.name === null)
+      && typeof entry.matched === "boolean"
+      && (entry.name !== null || entry.matched === false)) ? receipt : null;
+  } catch { return null; }
+}
+
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   return {
@@ -79,14 +100,8 @@ function main() {
         ? { command: agent.command, outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" }
         : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env: probeEnv });
       // Only name/match receipts leave the server; never persist tool arguments.
-      // A malformed or oversized receipt is an infrastructure failure.
-      let receipt = [];
-      try {
-        if (fs.existsSync(receiptPath)) {
-          if (fs.statSync(receiptPath).size > 65536) throw new Error("receipt too large");
-          receipt = fs.readFileSync(receiptPath, "utf8").split("\n").filter(Boolean).map(JSON.parse);
-        }
-      } catch { receipt = null; }
+      // Malformed or oversized evidence is inconclusive, not a negative MCP result.
+      const receipt = readMcpReceipt(receiptPath);
       results.push({ agent: agent.id, observedAt, version, execution,
         toolCallsObserved: receipt?.length ?? null,
         verdict: receipt === null ? "inconclusive" : classifyMcpResult(execution, receipt) });

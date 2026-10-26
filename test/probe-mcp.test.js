@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult } from "../scripts/probe-mcp.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult, readMcpReceipt } from "../scripts/probe-mcp.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("MCP echo server exposes and calls deterministic tool", () => {
@@ -73,6 +73,38 @@ test("MCP server records rejected and valid tool-call attempts without exposing 
     const valid = runRequests([request(TOOL_NAME, MCP_MARKER)], path.join(temp, "valid.jsonl"));
     assert.deepEqual(valid, [{ name: TOOL_NAME, matched: true }]);
     assert.equal(classifyMcpResult({ outcome: "success" }, valid), "pass");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-invalid-receipt-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const valid = JSON.stringify({ name: TOOL_NAME, matched: true });
+  try {
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "missing receipt means no calls");
+    for (const [name, content] of Object.entries({
+      extraField: JSON.stringify({ name: TOOL_NAME, matched: true, extra: "invalid" }),
+      wrongType: JSON.stringify({ name: TOOL_NAME, matched: "true" }),
+      impossibleMatch: JSON.stringify({ name: null, matched: true }),
+      unknownName: JSON.stringify({ name: "other", matched: false }),
+      missingField: JSON.stringify({ matched: true }),
+      nullRecord: "null",
+      arrayRecord: "[]",
+      mixedRecords: valid + "\n" + JSON.stringify({ name: TOOL_NAME, matched: 1 }),
+      blankLine: valid + "\n\n",
+      invalidJson: "{invalid",
+      oversized: "x".repeat(65537)
+    })) {
+      fs.writeFileSync(receiptPath, content);
+      const parsed = readMcpReceipt(receiptPath);
+      assert.equal(parsed, null, name);
+      assert.equal(parsed === null ? "inconclusive" : classifyMcpResult({ outcome: "success" }, parsed),
+        "inconclusive", name);
+    }
+    fs.writeFileSync(receiptPath, valid + "\n");
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: null, matched: false }) + "\n" + valid + "\n");
+    assert.equal(readMcpReceipt(receiptPath).length, 2, "rejected attempts remain countable");
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
