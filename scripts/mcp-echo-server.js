@@ -37,12 +37,16 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
   }
   if (message.method === "tools/call") {
     const name = message.params?.name;
-    const text = message.params?.arguments?.text;
+    const args = message.params?.arguments;
+    // Match the advertised inputSchema, including additionalProperties: false.
+    const validArguments = args !== null && typeof args === "object" && !Array.isArray(args)
+      && Object.keys(args).length === 1 && typeof args.text === "string";
+    const text = validArguments ? args.text : null;
     // Count rejected attempts too: a bad call followed by a valid one is not "exactly once".
     // Never persist caller-provided tool names or arguments in the receipt.
-    onToolCall({ name: name === TOOL_NAME ? TOOL_NAME : null, text: typeof text === "string" ? text : null });
+    onToolCall({ name: name === TOOL_NAME ? TOOL_NAME : null, text });
     if (name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
-    if (typeof text !== "string") return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "text must be a string" } };
+    if (!validArguments) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "arguments must contain only string text" } };
     return { jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }], isError: false } };
   }
   if (message.id !== undefined) return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } };
