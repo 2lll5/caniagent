@@ -2,7 +2,7 @@
 
 `npm run probe:structured` is an opt-in executable probe for the roadmap's machine-readable output contract. It does not run as part of CI because the agent CLIs may require authentication or provider quota.
 
-The probe invokes each agent's documented non-interactive structured-output mode with a deterministic marker, then verifies that stdout is syntactically valid for the advertised wire format and that the marker occurs inside parsed structured data.
+The probe invokes each agent's documented non-interactive structured-output mode with a deterministic marker, then verifies that stdout is syntactically valid for the advertised wire format and that the **final recognized model-response text** exactly matches the marker. Input echoes, arbitrary metadata, and earlier responses are not positive evidence; explicit failure events invalidate an otherwise matching response.
 
 | Agent | Invocation mode | Expected wire format |
 | --- | --- | --- |
@@ -11,13 +11,15 @@ The probe invokes each agent's documented non-interactive structured-output mode
 | Gemini CLI | `gemini -p ... --output-format json` | JSON document |
 | OpenCode | `opencode run --format json` | JSON Lines events |
 
-Each run uses a temporary workspace and isolated HOME/XDG directories. Evidence records the agent version, exact redacted command, exit status, redacted/truncated stdout and stderr, expected format, parseability, and whether the deterministic marker was observed. Temporary directories are removed after each agent run.
+Each run uses a temporary workspace and redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows AppData, and XDG config/data/state/cache paths into its temporary home. Inherited `NODE_OPTIONS` is removed, but authentication, proxy, and other environment variables may remain. This is **not a filesystem or process sandbox**. Temporary fixtures are removed after each agent run.
+
+Classification uses the captured stdout **before** redaction and evidence truncation, with an 8 MiB child-process buffer limit. The result artifact contains only redacted stdout/stderr (each truncated to 12,000 characters), not raw stdout. An output-buffer overflow or other subprocess error is inconclusive even if a partial capture contains the marker. Evidence also records the agent version, redacted command, exit status, expected format, parseability, and marker verdict.
 
 Verdicts are deliberately conservative:
 
-- `pass`: the process succeeded, all structured output parsed, and the marker was observed in parsed data.
+- `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker.
 - `fail`: the process exited successfully but stdout violated the documented JSON/JSONL wire format.
-- `inconclusive`: the agent could not run successfully, or structured output parsed but the deterministic marker was not observed.
+- `inconclusive`: the agent could not run successfully (including output-buffer overflow), an explicit failure event was present, or parsed output lacked a final model response exactly matching the marker.
 - `unknown`: no documented adapter is encoded.
 
 A probe result is evidence, not an automatic compatibility-matrix update. Do not change `data/matrix.json` from a single local run; record the agent version and reproduce the behavior before changing a support claim.
