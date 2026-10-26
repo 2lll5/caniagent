@@ -288,3 +288,27 @@ test("only the last model response can establish the structured marker", () => {
       verdict, agent ?? "direct-parser");
   }
 });
+
+// The capture cap must fail closed even when a valid marker is present in
+// the output collected before Node reports ENOBUFS.
+test("structured probe treats stdout exceeding its bounded capture as inconclusive", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-overflow-"));
+  try {
+    const fixture = path.join(dir, "overflow.cjs");
+    fs.writeFileSync(fixture,
+      `process.stdout.write(JSON.stringify({ padding: "x".repeat(8 * 1024 * 1024), response: ${JSON.stringify(marker)} }));`);
+    const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
+      format: "json", marker
+    });
+    assert.equal(execution.outcome, "spawn_error");
+    assert.match(execution.error ?? "", /ENOBUFS/);
+    assert.deepEqual(classification, {
+      parseable: false, markerObserved: false, verdict: "inconclusive"
+    });
+    assert.ok(execution.stdout.length <= 12000);
+    assert.equal(Object.hasOwn(execution, "rawStdout"), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
