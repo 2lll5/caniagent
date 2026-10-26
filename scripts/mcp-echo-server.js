@@ -7,11 +7,23 @@ export const TOOL_NAME = "caniagent_echo";
 
 export function handleMcpMessage(message, onToolCall = () => {}) {
   if (message.method === "initialize") {
+    const params = message.params;
+    // Only a valid JSON-RPC MCP initialize request can establish handshake evidence.
+    const valid = message.jsonrpc === "2.0"
+      && (typeof message.id === "string" || (typeof message.id === "number" && Number.isFinite(message.id)))
+      && params && typeof params === "object" && !Array.isArray(params)
+      && typeof params.protocolVersion === "string" && params.protocolVersion.length > 0
+      && params.capabilities && typeof params.capabilities === "object" && !Array.isArray(params.capabilities)
+      && params.clientInfo && typeof params.clientInfo === "object" && !Array.isArray(params.clientInfo)
+      && typeof params.clientInfo.name === "string" && params.clientInfo.name.length > 0
+      && typeof params.clientInfo.version === "string" && params.clientInfo.version.length > 0;
+    if (!valid) return { jsonrpc: "2.0", id: message.id ?? null,
+      error: { code: -32600, message: "Invalid initialize request" } };
     return {
       jsonrpc: "2.0",
       id: message.id,
       result: {
-        protocolVersion: message.params?.protocolVersion ?? "2025-06-18",
+        protocolVersion: params.protocolVersion,
         capabilities: { tools: {} },
         serverInfo: { name: "caniagent-echo", version: "1.0.0" }
       }

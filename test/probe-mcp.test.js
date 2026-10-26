@@ -136,6 +136,19 @@ test("MCP server records initialization only after a protocol handshake", () => 
     const list = run({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     assert.equal(list.status, 0, list.stderr);
     assert.equal(readMcpInitialization(markerPath), false, "listing is not initialization");
+    const validParams = { protocolVersion: "2025-06-18", capabilities: {},
+      clientInfo: { name: "test", version: "1" } };
+    for (const invalid of [
+      { jsonrpc: "2.0", id: 3, method: "initialize" },
+      { jsonrpc: "2.0", id: 3, method: "initialize", params: { protocolVersion: "2025-06-18" } },
+      { jsonrpc: "2.0", method: "initialize", params: validParams },
+      { id: 3, method: "initialize", params: validParams }
+    ]) {
+      const rejected = run(invalid);
+      assert.equal(rejected.status, 0, rejected.stderr);
+      assert.equal(JSON.parse(rejected.stdout.trim()).error.code, -32600);
+      assert.equal(readMcpInitialization(markerPath), false, "invalid initialize must not create evidence");
+    }
     const initialized = run({ jsonrpc: "2.0", id: 2, method: "initialize",
       params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } } });
     assert.equal(initialized.status, 0, initialized.stderr);
