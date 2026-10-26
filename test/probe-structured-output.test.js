@@ -116,7 +116,7 @@ test("structured probe treats stdout exceeding its bounded capture as inconclusi
   try {
     const fixture = path.join(dir, "overflow.cjs");
     fs.writeFileSync(fixture,
-      `process.stdout.write(JSON.stringify({ padding: "x".repeat(8 * 1024 * 1024), response: ${JSON.stringify(marker)} }));\\n`);
+      `process.stdout.write(JSON.stringify({ padding: "x".repeat(8 * 1024 * 1024), response: ${JSON.stringify(marker)} }));`);
     const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
       format: "json", marker
     });
