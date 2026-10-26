@@ -4,7 +4,9 @@
 
 Use `npm run probe:nested -- --output=.caniagent/nested-probe.json` to keep the JSON result. The probe uses documented non-interactive entry points: `codex exec --ephemeral`, `claude -p`, `gemini -p`, and `opencode run`. Each result also records a redacted `--version` execution so behavior evidence can be tied to the installed agent version without relying on a separately run probe.
 
-The probe replaces `HOME`, `USERPROFILE`, and XDG config/data/state locations with a temporary directory and deletes the fixture afterward. This prevents the probe from writing to normal user configuration directories. Consequently, saved CLI login state is intentionally not reused; environment-based credentials may still be used by an agent. Running the probe can contact model providers and consume quota when credentials are available.
+The probe creates a temporary workspace and redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows `APPDATA`/`LOCALAPPDATA`, and XDG config/data/state/cache paths into its temporary home. It also removes inherited `NODE_OPTIONS` (including case variants) so Node.js preload hooks do not alter CLI behavior. This reduces accidental reuse of developer configuration and sessions, but **is not a filesystem or process sandbox**: an agent may still access external paths through other inherited settings or its own behavior. The fixture is deleted afterward.
+
+Other environment variables, including authentication, proxy settings, and `NODE_EXTRA_CA_CERTS`, remain inherited. Saved CLI login state in the normal home is generally not reused; environment-based credentials may still be used. Removing `NODE_OPTIONS` can affect agents that depend on enterprise preload hooks. Running the probe can contact model providers and consume quota when credentials are available.
 
 A successful process with neither marker is recorded as `inconclusive`, not as evidence that nested instructions are unsupported. Non-zero exits, missing CLIs, timeouts, and signals are also inconclusive. Probe output, including version output, is redacted with the shared probe redactor before it is stored.
 
