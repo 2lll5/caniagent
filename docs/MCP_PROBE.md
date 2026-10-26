@@ -6,12 +6,12 @@ The probe creates a temporary workspace and home for each supported agent, confi
 
 ## Verdicts
 
-- `pass`: the agent command succeeded and the local MCP server recorded exactly one valid echo-tool call with the expected argument. The marker appearing in CLI stdout/stderr alone is **not** evidence: the prompt already contains it.
-- `fail`: the agent command succeeded but no matching single server-side tool-call receipt was observed. This does not, by itself, prove the agent lacks MCP support.
+- `pass`: the agent command succeeded and the local MCP server recorded exactly one `tools/call` attempt, for the expected echo tool with the expected argument. The marker appearing in CLI stdout/stderr alone is **not** evidence: the prompt already contains it.
+- `fail`: the agent command succeeded but the server observed zero, rejected, or repeated `tools/call` attempts instead of exactly one valid call. This does not, by itself, prove the agent lacks MCP support.
 - `skip`: the agent executable was not installed.
 - `inconclusive`: execution failed, timed out, was interrupted, or could not otherwise produce trustworthy behavior evidence. Authentication-dependent failures therefore do not become negative compatibility claims.
 
-The JSON evidence records platform, Node version, agent version command, exact redacted execution command, exit status, redacted/truncated stdout and stderr, and the number of server-recorded tool calls. The private receipt lives only in the temporary fixture, contains a tool name and boolean argument match (not tool arguments), and is deleted after classification. A malformed or oversized receipt is inconclusive. Do not promote `data/matrix.json` claims from a single inconclusive run; retain reproducible probe artifacts and the tested agent version.
+The JSON evidence records platform, Node version, agent version command, exact redacted execution command, exit status, redacted/truncated stdout and stderr, and the number of server-recorded `tools/call` attempts, including rejected attempts. The private receipt lives only in the temporary fixture, contains the fixed expected tool name (or null for an unknown name) and a boolean argument match (never caller-provided tool names or arguments), and is deleted after classification. A malformed or oversized receipt is inconclusive. Do not promote `data/matrix.json` claims from a single inconclusive run; retain reproducible probe artifacts and the tested agent version.
 
 ## Isolation and credentials
 

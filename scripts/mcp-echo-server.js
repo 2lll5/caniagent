@@ -36,10 +36,13 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
     };
   }
   if (message.method === "tools/call") {
-    if (message.params?.name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
+    const name = message.params?.name;
     const text = message.params?.arguments?.text;
+    // Count rejected attempts too: a bad call followed by a valid one is not "exactly once".
+    // Never persist caller-provided tool names or arguments in the receipt.
+    onToolCall({ name: name === TOOL_NAME ? TOOL_NAME : null, text: typeof text === "string" ? text : null });
+    if (name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
     if (typeof text !== "string") return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "text must be a string" } };
-    onToolCall({ name: TOOL_NAME, text });
     return { jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }], isError: false } };
   }
   if (message.id !== undefined) return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } };
@@ -54,7 +57,7 @@ function main() {
       const response = handleMcpMessage(JSON.parse(line), ({ name, text }) => {
         const receiptPath = process.env.CANIAGENT_MCP_RECEIPT_PATH;
         if (receiptPath) fs.appendFileSync(receiptPath, JSON.stringify({
-          name, matched: text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
+          name, matched: name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
         }) + "\n", { mode: 0o600 });
       });
       if (response) process.stdout.write(`${JSON.stringify(response)}\n`);

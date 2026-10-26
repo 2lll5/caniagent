@@ -34,24 +34,39 @@ test("MCP prompt echoes never count as tool-call evidence", () => {
   assert.equal(classifyMcpResult(execution, [{ name: "caniagent_echo", matched: true }]), "pass");
 });
 
-test("MCP server records validated tool calls without exposing their arguments", () => {
+test("MCP server records rejected and valid tool-call attempts without exposing arguments", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-"));
   try {
-    const receiptPath = path.join(temp, "receipt.jsonl");
     const request = (name, text) => JSON.stringify({
       jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: { text } }
     });
-    const input = [request("wrong-tool", MCP_MARKER), request("caniagent_echo", MCP_MARKER)].join("\n") + "\n";
     const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
-    const run = spawnSync(process.execPath, [serverPath], {
-      input, encoding: "utf8", timeout: 5000,
-      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
-        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
-    });
-    assert.equal(run.status, 0, run.stderr);
-    assert.deepEqual(fs.readFileSync(receiptPath, "utf8").trim().split("\n").map(JSON.parse),
-      [{ name: "caniagent_echo", matched: true }]);
-    assert.equal(run.stdout.trim().split("\n").length, 2);
+    const runRequests = (requests, receiptPath) => {
+      const run = spawnSync(process.execPath, [serverPath], {
+        input: requests.join("\n") + "\n", encoding: "utf8", timeout: 5000,
+        env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+          CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+      });
+      assert.equal(run.status, 0, run.stderr);
+      assert.equal(run.stdout.trim().split("\n").length, requests.length);
+      return fs.readFileSync(receiptPath, "utf8").trim().split("\n").map(JSON.parse);
+    };
+    const attempts = runRequests([
+      request("wrong-tool", MCP_MARKER),
+      request(TOOL_NAME, null),
+      request(TOOL_NAME, MCP_MARKER)
+    ], path.join(temp, "rejected.jsonl"));
+    assert.deepEqual(attempts, [
+      { name: null, matched: false },
+      { name: TOOL_NAME, matched: false },
+      { name: TOOL_NAME, matched: true }
+    ]);
+    assert.equal(attempts.some((entry) => Object.hasOwn(entry, "text")), false);
+    assert.equal(classifyMcpResult({ outcome: "success" }, attempts), "fail");
+
+    const valid = runRequests([request(TOOL_NAME, MCP_MARKER)], path.join(temp, "valid.jsonl"));
+    assert.deepEqual(valid, [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(classifyMcpResult({ outcome: "success" }, valid), "pass");
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
