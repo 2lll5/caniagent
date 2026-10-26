@@ -15,6 +15,8 @@ Each run uses a temporary workspace and redirects `HOME`, `USERPROFILE`, `CODEX_
 
 Classification uses the captured stdout **before** redaction and evidence truncation, with an 8 MiB child-process buffer limit. The result artifact contains only redacted stdout/stderr (each truncated to 12,000 characters), not raw stdout. An output-buffer overflow or other subprocess error is inconclusive even if a partial capture contains the marker. Evidence also records the agent version, redacted command, exit status, expected format, parseability, and marker verdict.
 
+For Gemini CLI JSON output, a non-null `error` envelope vetoes a matching `response` marker, even if the subprocess exits with status zero. A null or absent `error` field does not invalidate a legitimate response.
+
 Verdicts are deliberately conservative:
 
 - `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker.

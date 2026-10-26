@@ -212,6 +212,24 @@ test("explicit failure events invalidate earlier response markers", () => {
   }
 });
 
+test("Gemini JSON error envelopes veto matching responses even on a zero exit", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const value of [
+    { response: marker, error: { type: "FatalAuthenticationError", message: "synthetic failure" } },
+    { type: "result", response: marker, error: { type: "RuntimeError", message: "synthetic failure" } }
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", "gemini-cli"), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  for (const value of [
+    { response: marker, error: null },
+    { response: marker, stats: { models: {} } }
+  ]) {
+    assert.equal(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", "gemini-cli").verdict, "pass");
+  }
+});
+
 test("terminal failures invalidate markers across adapters and direct parsing", () => {
   const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
   const cases = [
