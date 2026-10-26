@@ -45,6 +45,32 @@ test("marker must be observed before structured output passes", () => {
   });
 });
 
+test("missing or blank markers cannot establish structured-output success", () => {
+  const outputs = ['{"type":"request","input":"synthetic"}', '{"response":""}'];
+  for (const marker of [undefined, "", " "]) {
+    for (const output of outputs) {
+      assert.deepEqual(classifyStructuredOutput(output, "json", marker, "success", "gemini-cli"), {
+        parseable: true, markerObserved: false, verdict: "inconclusive"
+      });
+    }
+  }
+});
+
+test("direct-parser fallback rejects non-null Gemini error envelopes", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const value of [
+    { response: marker, error: { message: "synthetic failure" } },
+    { type: "result", response: marker, error: "synthetic failure" }
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  for (const value of [{ response: marker, error: null }, { response: marker }]) {
+    assert.equal(classifyStructuredOutput(JSON.stringify(value), "json", marker).verdict, "pass");
+  }
+});
+
 test("runtime failures stay inconclusive even if output resembles evidence", () => {
   assert.deepEqual(classifyStructuredOutput('{"response":"MARKER"}', "json", "MARKER", "error"), {
     parseable: false,
