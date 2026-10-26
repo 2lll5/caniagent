@@ -6,7 +6,7 @@ The probe creates a temporary workspace and home for each supported agent, confi
 
 ## Verdicts
 
-- `pass`: the agent command succeeded and the local MCP server recorded exactly one `tools/call` attempt, for the expected echo tool with the expected argument. The marker appearing in CLI stdout/stderr alone is **not** evidence: the prompt already contains it.
+- `pass`: the agent command succeeded and the local MCP server recorded exactly one `tools/call` attempt, for the expected echo tool with exactly the expected string `text` argument and no extra fields (matching the advertised `additionalProperties: false` input schema). The marker appearing in CLI stdout/stderr alone is **not** evidence: the prompt already contains it.
 - `fail`: the agent command succeeded but the server observed zero, rejected, or repeated `tools/call` attempts instead of exactly one valid call. This does not, by itself, prove the agent lacks MCP support.
 - `skip`: the agent executable was not installed.
 - `inconclusive`: execution failed, timed out, was interrupted, or could not otherwise produce trustworthy behavior evidence. Authentication-dependent failures therefore do not become negative compatibility claims.
