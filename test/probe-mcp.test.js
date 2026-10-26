@@ -83,6 +83,10 @@ test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
   try {
     assert.deepEqual(readMcpReceipt(receiptPath), [], "missing receipt means no calls");
     for (const [name, content] of Object.entries({
+      duplicateName: `{"name":null,"name":"${TOOL_NAME}","matched":true}`,
+      duplicateMatched: `{"name":"${TOOL_NAME}","matched":false,"matched":true}`,
+      reorderedFields: `{"matched":true,"name":"${TOOL_NAME}"}`,
+      noncanonicalWhitespace: `{ "name":"${TOOL_NAME}","matched":true}`,
       extraField: JSON.stringify({ name: TOOL_NAME, matched: true, extra: "invalid" }),
       wrongType: JSON.stringify({ name: TOOL_NAME, matched: "true" }),
       impossibleMatch: JSON.stringify({ name: null, matched: true }),

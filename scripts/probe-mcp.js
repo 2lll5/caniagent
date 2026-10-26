@@ -58,12 +58,15 @@ export function readMcpReceipt(receiptPath) {
     const receipt = lines.map((line) => JSON.parse(line));
     // A parseable JSONL record is not necessarily a valid server receipt.
     // Reject unknown fields and types rather than turning corrupt evidence into a "fail".
-    return receipt.every((entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+    return receipt.every((entry, index) => entry && typeof entry === "object" && !Array.isArray(entry)
       && Object.keys(entry).length === 2 && Object.hasOwn(entry, "name")
       && Object.hasOwn(entry, "matched")
       && (entry.name === "caniagent_echo" || entry.name === null)
       && typeof entry.matched === "boolean"
-      && (entry.name !== null || entry.matched === false)) ? receipt : null;
+      && (entry.name !== null || entry.matched === false)
+      // The server emits canonical JSON.stringify({ name, matched }) lines. Reject duplicate
+      // JSON keys, reordered keys and noncanonical text before trusting a receipt.
+      && JSON.stringify({ name: entry.name, matched: entry.matched }) === lines[index]) ? receipt : null;
   } catch { return null; }
 }
 
