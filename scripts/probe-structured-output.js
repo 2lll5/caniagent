@@ -54,8 +54,9 @@ function hasExplicitStructuredFailure(value, agent) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   if (value.is_error === true) return true;
   // Gemini headless JSON reports failed requests in a non-null error envelope.
-  // A matching response cannot override that failure, even with exit code zero.
-  if (agent === "gemini-cli" && (!value.type || value.type === "result") && value.error != null) return true;
+  // Direct-parser callers must also reject that envelope, even on exit code zero.
+  if ((agent === "gemini-cli" || agent === undefined) &&
+      (!value.type || value.type === "result") && value.error != null) return true;
   // A terminal failure invalidates prior response markers for every adapter,
   // including callers that omit the agent name.
   if (value.type === "error" || value.type === "turn.failed") return true;
@@ -81,7 +82,10 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
     const texts = modelResponseTexts(value, agent);
     return texts.length ? texts[texts.length - 1] : last;
   }, undefined);
-  const markerObserved = !failed && finalResponse?.trim() === marker;
+  // Missing or blank markers are not evidence; optional chaining alone would
+  // otherwise treat an absent response and an undefined marker as equal.
+  const markerObserved = !failed && typeof marker === "string" && marker.trim().length > 0 &&
+    typeof finalResponse === "string" && finalResponse.trim() === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 
