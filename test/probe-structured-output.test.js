@@ -469,3 +469,26 @@ test("OpenCode cannot reuse a marker when a later step starts without a reply", 
       expected, name);
   }
 });
+
+test("OpenCode tool_use after marker requires a later model reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const start = { type: "step_start", part: { type: "step-start" } };
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const tool = (name = "bash") => ({
+    type: "tool_use", part: { type: "tool", tool: name, state: { status: "completed" } }
+  });
+  const stop = { type: "step_finish", part: { type: "step-finish", reason: "stop" } };
+  const cases = [
+    ["tool after marker, missing finish", [start, reply(marker), tool()], "inconclusive"],
+    ["tool after marker, explicit stop", [start, reply(marker), tool("read"), stop], "inconclusive"],
+    ["tool before final marker", [start, tool(), reply(marker)], "pass"],
+    ["model replies after later tool", [start, reply("draft"), tool(), reply(marker)], "pass"],
+    ["later diagnostic only", [start, reply(marker), { type: "reasoning", part: { type: "reasoning", text: "synthetic" } }], "pass"],
+    ["later nonmatching reply", [start, reply(marker), tool(), reply("other")], "inconclusive"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const output = events.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "opencode").verdict,
+      expected, label);
+  }
+});
