@@ -100,7 +100,11 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
     const lastResponseIndex = values.findLastIndex((value) => modelResponseTexts(value, agent).length > 0);
     const lastStartIndex = values.findLastIndex((value) => value?.type === "turn.started");
     const lastCompletedIndex = values.findLastIndex((value) => value?.type === "turn.completed");
-    return lastCompletedIndex > lastResponseIndex && lastCompletedIndex > lastStartIndex;
+    // A later turn can complete without producing a model reply. Do not
+    // certify an earlier turn's marker as the final response in that case.
+    return lastCompletedIndex > lastResponseIndex &&
+      lastCompletedIndex > lastStartIndex &&
+      (lastStartIndex < 0 || lastResponseIndex > lastStartIndex);
   })();
   const markerObserved = !failed && codexCompleted && !incompleteOpenCodeFinish &&
     typeof marker === "string" && marker.trim().length > 0 &&

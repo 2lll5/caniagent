@@ -345,6 +345,9 @@ test("Codex requires a completed turn after its final model reply", () => {
     [[{ type: "turn.started" }, reply], "inconclusive"],
     [[{ type: "turn.completed" }, { type: "turn.started" }, reply], "inconclusive"],
     [[reply, { type: "turn.completed" }, { type: "turn.started" }], "inconclusive"],
+    [[reply, { type: "turn.completed" }, { type: "turn.started" }, { type: "turn.completed" }], "inconclusive"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }, { type: "turn.started" }, { type: "turn.completed" }], "inconclusive"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }, { type: "turn.started" }, reply, { type: "turn.completed" }], "pass"],
     [[{ type: "turn.started" }, reply, { type: "turn.completed" }], "pass"]
   ];
   for (const [events, expected] of cases) {
