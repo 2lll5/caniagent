@@ -14,6 +14,9 @@ test("MCP echo server exposes and calls deterministic tool", () => {
   assert.equal(listed.result.tools[0].name, TOOL_NAME);
   const called = handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } });
   assert.equal(called.result.content[0].text, MCP_MARKER);
+  const extra = handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/call",
+    params: { name: TOOL_NAME, arguments: { text: MCP_MARKER, extra: "unexpected" } } });
+  assert.equal(extra.error.code, -32602, "additionalProperties: false must be enforced");
 });
 
 test("MCP probe classifies pass, fail, skip, and inconclusive", () => {
@@ -54,10 +57,13 @@ test("MCP server records rejected and valid tool-call attempts without exposing 
     const attempts = runRequests([
       request("wrong-tool", MCP_MARKER),
       request(TOOL_NAME, null),
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: TOOL_NAME, arguments: { text: MCP_MARKER, extra: "unexpected" } } }),
       request(TOOL_NAME, MCP_MARKER)
     ], path.join(temp, "rejected.jsonl"));
     assert.deepEqual(attempts, [
       { name: null, matched: false },
+      { name: TOOL_NAME, matched: false },
       { name: TOOL_NAME, matched: false },
       { name: TOOL_NAME, matched: true }
     ]);
