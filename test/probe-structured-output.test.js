@@ -399,3 +399,21 @@ test("OpenCode nonterminal step_finish cannot certify a prior marker", () => {
       expected, name);
   }
 });
+
+test("OpenCode cannot reuse a marker when a later step starts without a reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const start = () => ({ type: "step_start", part: { type: "step-start" } });
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const finish = (reason) => ({ type: "step_finish", part: { type: "step-finish", reason } });
+  const cases = [
+    ["new step after a stopped reply", [start(), reply(marker), finish("stop"), start()], "inconclusive"],
+    ["new step after a reply with missing finish", [start(), reply(marker), start()], "inconclusive"],
+    ["single step with omitted final finish", [start(), reply(marker)], "pass"],
+    ["new step replies with marker and omits final finish", [start(), reply("draft"), finish("tool-calls"), start(), reply(marker)], "pass"],
+    ["new step replies with different text", [start(), reply(marker), finish("stop"), start(), reply("other")], "inconclusive"]
+  ];
+  for (const [name, events, expected] of cases) {
+    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\\n"), "jsonl", marker, "success", "opencode").verdict,
+      expected, name);
+  }
+});

@@ -92,6 +92,13 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   const incompleteOpenCodeFinish = lastOpenCodeFinish !== null &&
     lastOpenCodeFinish.index > (finalResponse?.index ?? -1) &&
     lastOpenCodeFinish.reason !== "stop";
+  // A new step may start after an earlier step completed successfully.
+  // Never reuse the earlier reply when that newer step has no model text.
+  // Missing final step_finish remains tolerated for OpenCode v2.
+  const lastOpenCodeStartIndex = agent === "opencode"
+    ? values.findLastIndex((value) => value?.type === "step_start" && value.part?.type === "step-start")
+    : -1;
+  const staleOpenCodeResponse = lastOpenCodeStartIndex > (finalResponse?.index ?? -1);
   // Missing or blank markers are not evidence; optional chaining alone would
   // otherwise treat an absent response and an undefined marker as equal.
   // Codex emits turn.completed only after a successful turn. A zero-exit
@@ -107,6 +114,7 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
       (lastStartIndex < 0 || lastResponseIndex > lastStartIndex);
   })();
   const markerObserved = !failed && codexCompleted && !incompleteOpenCodeFinish &&
+    !staleOpenCodeResponse &&
     typeof marker === "string" && marker.trim().length > 0 &&
     typeof finalResponse?.text === "string" && finalResponse.text.trim() === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
