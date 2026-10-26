@@ -38,10 +38,12 @@ export function createMcpFixture(baseDir, agentId, serverPath = SERVER_PATH) {
   return { workspace, command, args };
 }
 
-export function classifyMcpResult(execution) {
+export function classifyMcpResult(execution, receipt = []) {
   if (execution.outcome === "not_found") return "skip";
   if (execution.outcome !== "success") return "inconclusive";
-  return `${execution.stdout}\n${execution.stderr}`.includes(MCP_MARKER) ? "pass" : "fail";
+  // The prompt contains MCP_MARKER; an echoed prompt cannot prove tool use.
+  // Only a server-side receipt can establish that the MCP tool was called.
+  return receipt.length === 1 && receipt[0]?.name === "caniagent_echo" && receipt[0]?.matched === true ? "pass" : "fail";
 }
 
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
@@ -71,10 +73,23 @@ function main() {
       const env = isolatedProbeEnvironment(home);
       const version = run(agent.command, ["--version"], { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = `Call the caniagent_echo MCP tool exactly once with text ${MCP_MARKER}. Reply with only the tool result.`;
+      const receiptPath = path.join(temp, "tool-call-receipt.jsonl");
+      const probeEnv = { ...env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath, CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER };
       const execution = version.outcome === "not_found"
         ? { command: agent.command, outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" }
-        : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env });
-      results.push({ agent: agent.id, observedAt, version, execution, verdict: classifyMcpResult(execution) });
+        : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env: probeEnv });
+      // Only name/match receipts leave the server; never persist tool arguments.
+      // A malformed or oversized receipt is an infrastructure failure.
+      let receipt = [];
+      try {
+        if (fs.existsSync(receiptPath)) {
+          if (fs.statSync(receiptPath).size > 65536) throw new Error("receipt too large");
+          receipt = fs.readFileSync(receiptPath, "utf8").split("\n").filter(Boolean).map(JSON.parse);
+        }
+      } catch { receipt = null; }
+      results.push({ agent: agent.id, observedAt, version, execution,
+        toolCallsObserved: receipt?.length ?? null,
+        verdict: receipt === null ? "inconclusive" : classifyMcpResult(execution, receipt) });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }

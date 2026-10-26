@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,10 +18,42 @@ test("MCP echo server exposes and calls deterministic tool", () => {
 });
 
 test("MCP probe classifies pass, fail, skip, and inconclusive", () => {
-  assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }), "pass");
+  assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }, [{ name: "caniagent_echo", matched: true }]), "pass");
   assert.equal(classifyMcpResult({ outcome: "success", stdout: "no marker", stderr: "" }), "fail");
   assert.equal(classifyMcpResult({ outcome: "not_found", stdout: "", stderr: "" }), "skip");
   assert.equal(classifyMcpResult({ outcome: "failed", stdout: "", stderr: "auth required" }), "inconclusive");
+});
+
+test("MCP prompt echoes never count as tool-call evidence", () => {
+  const execution = { outcome: "success", stdout: `Prompt: ${MCP_MARKER}`, stderr: MCP_MARKER };
+  assert.equal(classifyMcpResult(execution), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "caniagent_echo", matched: false }]), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "other", matched: true }]), "fail");
+  assert.equal(classifyMcpResult(execution, [
+    { name: "caniagent_echo", matched: true }, { name: "caniagent_echo", matched: true }
+  ]), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "caniagent_echo", matched: true }]), "pass");
+});
+
+test("MCP server records validated tool calls without exposing their arguments", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.jsonl");
+    const request = (name, text) => JSON.stringify({
+      jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: { text } }
+    });
+    const input = [request("wrong-tool", MCP_MARKER), request("caniagent_echo", MCP_MARKER)].join("\n") + "\n";
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const run = spawnSync(process.execPath, [serverPath], {
+      input, encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(fs.readFileSync(receiptPath, "utf8").trim().split("\n").map(JSON.parse),
+      [{ name: "caniagent_echo", matched: true }]);
+    assert.equal(run.stdout.trim().split("\n").length, 2);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
 test("MCP fixtures configure only isolated project/home paths", () => {

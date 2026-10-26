@@ -6,12 +6,12 @@ The probe creates a temporary workspace and home for each supported agent, confi
 
 ## Verdicts
 
-- `pass`: the agent command succeeded and the deterministic tool result was observed.
-- `fail`: the agent command succeeded but the expected tool result was absent.
+- `pass`: the agent command succeeded and the local MCP server recorded exactly one valid echo-tool call with the expected argument. The marker appearing in CLI stdout/stderr alone is **not** evidence: the prompt already contains it.
+- `fail`: the agent command succeeded but no matching single server-side tool-call receipt was observed. This does not, by itself, prove the agent lacks MCP support.
 - `skip`: the agent executable was not installed.
 - `inconclusive`: execution failed, timed out, was interrupted, or could not otherwise produce trustworthy behavior evidence. Authentication-dependent failures therefore do not become negative compatibility claims.
 
-The JSON evidence records platform, Node version, agent version command, exact redacted execution command, exit status, and redacted/truncated stdout and stderr. Do not promote `data/matrix.json` claims from a single inconclusive run; retain reproducible probe artifacts and the tested agent version.
+The JSON evidence records platform, Node version, agent version command, exact redacted execution command, exit status, redacted/truncated stdout and stderr, and the number of server-recorded tool calls. The private receipt lives only in the temporary fixture, contains a tool name and boolean argument match (not tool arguments), and is deleted after classification. A malformed or oversized receipt is inconclusive. Do not promote `data/matrix.json` claims from a single inconclusive run; retain reproducible probe artifacts and the tested agent version.
 
 ## Isolation and credentials
 

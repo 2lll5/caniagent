@@ -1,10 +1,11 @@
+import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 export const TOOL_NAME = "caniagent_echo";
 
-export function handleMcpMessage(message) {
+export function handleMcpMessage(message, onToolCall = () => {}) {
   if (message.method === "initialize") {
     return {
       jsonrpc: "2.0",
@@ -38,6 +39,7 @@ export function handleMcpMessage(message) {
     if (message.params?.name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
     const text = message.params?.arguments?.text;
     if (typeof text !== "string") return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "text must be a string" } };
+    onToolCall({ name: TOOL_NAME, text });
     return { jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }], isError: false } };
   }
   if (message.id !== undefined) return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } };
@@ -49,7 +51,12 @@ function main() {
   input.on("line", (line) => {
     if (!line.trim()) return;
     try {
-      const response = handleMcpMessage(JSON.parse(line));
+      const response = handleMcpMessage(JSON.parse(line), ({ name, text }) => {
+        const receiptPath = process.env.CANIAGENT_MCP_RECEIPT_PATH;
+        if (receiptPath) fs.appendFileSync(receiptPath, JSON.stringify({
+          name, matched: text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
+        }) + "\n", { mode: 0o600 });
+      });
       if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
     } catch {
       process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
