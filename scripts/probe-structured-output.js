@@ -84,7 +84,15 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   }, undefined);
   // Missing or blank markers are not evidence; optional chaining alone would
   // otherwise treat an absent response and an undefined marker as equal.
-  const markerObserved = !failed && typeof marker === "string" && marker.trim().length > 0 &&
+  // Codex emits turn.completed only after a successful turn. A zero-exit
+  // process with a matching item but no terminal event is not enough evidence.
+  const codexCompleted = agent !== "codex" || (() => {
+    const lastResponseIndex = values.findLastIndex((value) => modelResponseTexts(value, agent).length > 0);
+    const lastStartIndex = values.findLastIndex((value) => value?.type === "turn.started");
+    const lastCompletedIndex = values.findLastIndex((value) => value?.type === "turn.completed");
+    return lastCompletedIndex > lastResponseIndex && lastCompletedIndex > lastStartIndex;
+  })();
+  const markerObserved = !failed && codexCompleted && typeof marker === "string" && marker.trim().length > 0 &&
     typeof finalResponse === "string" && finalResponse.trim() === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }

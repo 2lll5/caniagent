@@ -19,7 +19,7 @@ For Gemini CLI JSON output, a non-null `error` envelope vetoes a matching `respo
 
 Verdicts are deliberately conservative:
 
-- `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker.
+- `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker. For Codex JSONL, a `turn.completed` event must also follow the final model reply (without a later unfinished turn).
 - `fail`: the process exited successfully but stdout violated the documented JSON/JSONL wire format.
 - `inconclusive`: the agent could not run successfully (including output-buffer overflow), an explicit failure event was present, or parsed output lacked a final model response exactly matching the marker.
 - `unknown`: no documented adapter is encoded.

@@ -158,7 +158,10 @@ test("adapter-specific model response fields are the only positive evidence", ()
     ["gemini-cli", "json", { response: marker }]
   ];
   for (const [agent, format, response] of cases) {
-    assert.equal(classifyStructuredOutput(JSON.stringify(response), format, marker, "success", agent).verdict, "pass", agent);
+    const output = agent === "codex"
+      ? [response, { type: "turn.completed" }].map(JSON.stringify).join("\n")
+      : JSON.stringify(response);
+    assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict, "pass", agent);
   }
   assert.equal(classifyStructuredOutput(JSON.stringify({ type: "item.completed", item: { type: "user_message", text: marker } }), "jsonl", marker, "success", "codex").verdict, "inconclusive");
   assert.equal(classifyStructuredOutput(JSON.stringify({ type: "input", part: { type: "text", text: marker } }), "jsonl", marker, "success", "opencode").verdict, "inconclusive");
@@ -192,7 +195,7 @@ test("real child-process prompt echo stays inconclusive while a Codex agent mess
   try {
     for (const [name, events, expected] of [
       ["echo", [{ type: "input", text: marker }, { type: "turn.completed", usage: {} }], "inconclusive"],
-      ["answer", [{ type: "input", text: marker }, { type: "item.completed", item: { type: "agent_message", text: marker } }], "pass"]
+      ["answer", [{ type: "input", text: marker }, { type: "item.completed", item: { type: "agent_message", text: marker } }, { type: "turn.completed" }], "pass"]
     ]) {
       const fixture = path.join(dir, `${name}.cjs`);
       fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(events.map(JSON.stringify).join("\n"))});\n`);
@@ -327,9 +330,25 @@ test("only the last model response can establish the structured marker", () => {
     [undefined, [{ type: "result", text: marker }, { type: "result", text: "different" }], "inconclusive"]
   ];
   for (const [agent, events, verdict] of cases) {
-    const stream = events.map(JSON.stringify).join("\n");
+    const streamEvents = agent === "codex" ? [...events, { type: "turn.completed" }] : events;
+    const stream = streamEvents.map(JSON.stringify).join("\n");
     assert.equal(classifyStructuredOutput(stream, "jsonl", marker, "success", agent).verdict,
       verdict, agent ?? "direct-parser");
+  }
+});
+
+test("Codex requires a completed turn after its final model reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const cases = [
+    [[reply], "inconclusive"],
+    [[{ type: "turn.started" }, reply], "inconclusive"],
+    [[{ type: "turn.completed" }, { type: "turn.started" }, reply], "inconclusive"],
+    [[reply, { type: "turn.completed" }, { type: "turn.started" }], "inconclusive"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }], "pass"]
+  ];
+  for (const [events, expected] of cases) {
+    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\n"), "jsonl", marker, "success", "codex").verdict, expected);
   }
 });
 
