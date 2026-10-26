@@ -70,6 +70,19 @@ export function readMcpReceipt(receiptPath) {
   } catch { return null; }
 }
 
+// A successful agent process is not negative MCP evidence unless its server
+// actually completed the protocol initialize handshake.
+export function readMcpInitialization(initializedPath) {
+  try { return fs.readFileSync(initializedPath, "utf8") === "initialized\n"; }
+  catch (error) { return error?.code === "ENOENT" ? false : null; }
+}
+
+export function classifyMcpEvidence(execution, receipt, initialized) {
+  if (execution.outcome === "not_found") return "skip";
+  if (receipt === null || initialized !== true) return "inconclusive";
+  return classifyMcpResult(execution, receipt);
+}
+
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   return {
@@ -98,16 +111,19 @@ function main() {
       const version = run(agent.command, ["--version"], { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = `Call the caniagent_echo MCP tool exactly once with text ${MCP_MARKER}. Reply with only the tool result.`;
       const receiptPath = path.join(temp, "tool-call-receipt.jsonl");
-      const probeEnv = { ...env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath, CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER };
+      const initializedPath = path.join(temp, "mcp-initialized");
+      const probeEnv = { ...env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath, CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER };
       const execution = version.outcome === "not_found"
         ? { command: agent.command, outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" }
         : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env: probeEnv });
       // Only name/match receipts leave the server; never persist tool arguments.
       // Malformed or oversized evidence is inconclusive, not a negative MCP result.
       const receipt = readMcpReceipt(receiptPath);
+      const serverInitialized = readMcpInitialization(initializedPath);
       results.push({ agent: agent.id, observedAt, version, execution,
-        toolCallsObserved: receipt?.length ?? null,
-        verdict: receipt === null ? "inconclusive" : classifyMcpResult(execution, receipt) });
+        serverInitialized, toolCallsObserved: receipt?.length ?? null,
+        verdict: classifyMcpEvidence(execution, receipt, serverInitialized) });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }

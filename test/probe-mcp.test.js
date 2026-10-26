@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult, readMcpReceipt } from "../scripts/probe-mcp.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult, classifyMcpEvidence, readMcpReceipt, readMcpInitialization } from "../scripts/probe-mcp.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("MCP echo server exposes and calls deterministic tool", () => {
@@ -109,6 +109,40 @@ test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
     assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
     fs.writeFileSync(receiptPath, JSON.stringify({ name: null, matched: false }) + "\n" + valid + "\n");
     assert.equal(readMcpReceipt(receiptPath).length, 2, "rejected attempts remain countable");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP evidence distinguishes absent handshake from a genuine zero-call result", () => {
+  const success = { outcome: "success" };
+  const valid = [{ name: TOOL_NAME, matched: true }];
+  assert.equal(classifyMcpEvidence(success, [], false), "inconclusive");
+  assert.equal(classifyMcpEvidence(success, [], true), "fail");
+  assert.equal(classifyMcpEvidence(success, valid, true), "pass");
+  assert.equal(classifyMcpEvidence(success, valid, false), "inconclusive");
+  assert.equal(classifyMcpEvidence(success, null, true), "inconclusive");
+  assert.equal(classifyMcpEvidence({ outcome: "not_found" }, [], false), "skip");
+});
+
+test("MCP server records initialization only after a protocol handshake", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-initialize-"));
+  const markerPath = path.join(temp, "initialized");
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const run = (request) => spawnSync(process.execPath, [serverPath], {
+    input: JSON.stringify(request) + "\n", encoding: "utf8", timeout: 5000,
+    env: { ...process.env, CANIAGENT_MCP_INITIALIZED_PATH: markerPath }
+  });
+  try {
+    assert.equal(readMcpInitialization(markerPath), false);
+    const list = run({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    assert.equal(list.status, 0, list.stderr);
+    assert.equal(readMcpInitialization(markerPath), false, "listing is not initialization");
+    const initialized = run({ jsonrpc: "2.0", id: 2, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } } });
+    assert.equal(initialized.status, 0, initialized.stderr);
+    assert.equal(JSON.parse(initialized.stdout.trim()).result.serverInfo.name, "caniagent-echo");
+    assert.equal(readMcpInitialization(markerPath), true);
+    fs.writeFileSync(markerPath, "corrupt");
+    assert.equal(readMcpInitialization(markerPath), false);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 

@@ -58,12 +58,19 @@ function main() {
   input.on("line", (line) => {
     if (!line.trim()) return;
     try {
-      const response = handleMcpMessage(JSON.parse(line), ({ name, text }) => {
+      const message = JSON.parse(line);
+      const response = handleMcpMessage(message, ({ name, text }) => {
         const receiptPath = process.env.CANIAGENT_MCP_RECEIPT_PATH;
         if (receiptPath) fs.appendFileSync(receiptPath, JSON.stringify({
           name, matched: name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
         }) + "\n", { mode: 0o600 });
       });
+      // A missing tool-call receipt only proves zero calls after an actual MCP handshake.
+      // If initialization never occurred, the probe must remain inconclusive.
+      if (message?.method === "initialize" && response?.result?.capabilities?.tools
+        && process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
+        fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });
+      }
       if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
     } catch {
       process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
