@@ -413,7 +413,7 @@ test("OpenCode cannot reuse a marker when a later step starts without a reply", 
     ["new step replies with different text", [start(), reply(marker), finish("stop"), start(), reply("other")], "inconclusive"]
   ];
   for (const [name, events, expected] of cases) {
-    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\\n"), "jsonl", marker, "success", "opencode").verdict,
+    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\n"), "jsonl", marker, "success", "opencode").verdict,
       expected, name);
   }
 });
