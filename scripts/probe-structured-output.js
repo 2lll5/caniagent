@@ -37,17 +37,38 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 
-function run(command, args, { cwd, env, timeout = 60000 } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+function run(command, args, { cwd, env, timeout = 60000, onStdout } = {}) {
+  // Valid JSON/JSONL can exceed Node's 1 MiB default sync buffer.
+  // Keep capture bounded; only redacted/truncated evidence is persisted.
+  const result = spawnSync(command, args, {
+    cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32",
+    maxBuffer: 8 * 1024 * 1024
+  });
+  const outcome = classifyProbeExecution(result);
+  // Classify the unmodified stdout before evidence redaction/truncation.
+  // Only the small classification result escapes this callback.
+  onStdout?.(result.stdout ?? "", outcome);
   return {
     command: redactProbeOutput([command, ...args].join(" ")),
-    outcome: classifyProbeExecution(result),
+    outcome,
     status: result.status,
     signal: result.signal,
     stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
     stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
     error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
   };
+}
+
+// Raw stdout is never added to the returned execution object or persisted artifact.
+export function runStructuredOutput(command, args, { format, marker, ...options }) {
+  let classification;
+  const execution = run(command, args, {
+    ...options,
+    onStdout: (rawStdout, outcome) => {
+      classification = classifyStructuredOutput(rawStdout, format, marker, outcome);
+    }
+  });
+  return { execution, ...classification };
 }
 
 function isolatedEnvironment(home) {
@@ -81,14 +102,15 @@ function main() {
       const marker = `CANIAGENT_STRUCTURED_${agent.id.replaceAll("-", "_").toUpperCase()}`;
       const prompt = `Reply with exactly this marker and nothing else: ${marker}`;
       const version = run(agent.command, spec.versionArgs, { cwd: workspace, env, timeout: 8000 });
-      const execution = run(agent.command, spec.args(prompt), { cwd: workspace, env });
+      const structured = runStructuredOutput(agent.command, spec.args(prompt), {
+        cwd: workspace, env, format: spec.format, marker
+      });
       results.push({
         agent: agent.id,
         observedAt,
         format: spec.format,
         version,
-        execution,
-        ...classifyStructuredOutput(execution.stdout, spec.format, marker, execution.outcome)
+        ...structured
       });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
