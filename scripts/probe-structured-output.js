@@ -109,9 +109,15 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
     const lastCompletedIndex = values.findLastIndex((value) => value?.type === "turn.completed");
     // A later turn can complete without producing a model reply. Do not
     // certify an earlier turn's marker as the final response in that case.
+    // A later tool invocation means the marker was not the final model action,
+    // even if the turn subsequently completes without another model reply.
+    const lastToolActivityIndex = values.findLastIndex((value) =>
+      (value?.type === "item.started" || value?.type === "item.completed") &&
+      ["command_execution", "file_change", "mcp_tool_call", "collab_tool_call", "web_search"].includes(value.item?.type));
     return lastCompletedIndex > lastResponseIndex &&
       lastCompletedIndex > lastStartIndex &&
-      (lastStartIndex < 0 || lastResponseIndex > lastStartIndex);
+      (lastStartIndex < 0 || lastResponseIndex > lastStartIndex) &&
+      lastResponseIndex > lastToolActivityIndex;
   })();
   const markerObserved = !failed && codexCompleted && !incompleteOpenCodeFinish &&
     !staleOpenCodeResponse &&

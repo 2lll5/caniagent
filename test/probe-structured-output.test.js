@@ -408,6 +408,29 @@ test("structured probe treats stdout exceeding its bounded capture as inconclusi
   }
 });
 
+test("Codex marker must follow all tool activity in the completed turn", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const tool = (type, event = "item.completed") => ({ type: event, item: { id: "tool-1", type } });
+  const cases = [
+    ["later command started", [reply, tool("command_execution", "item.started")], "inconclusive"],
+    ["later command completed", [reply, tool("command_execution")], "inconclusive"],
+    ["later MCP call", [reply, tool("mcp_tool_call")], "inconclusive"],
+    ["later file change", [reply, tool("file_change")], "inconclusive"],
+    ["later web search", [reply, tool("web_search")], "inconclusive"],
+    ["later collaborator call", [reply, tool("collab_tool_call")], "inconclusive"],
+    ["tool before final reply", [tool("command_execution"), reply], "pass"],
+    ["later diagnostic only", [reply, { type: "diagnostic", message: "synthetic" }], "pass"],
+    ["later reasoning only", [reply, { type: "item.completed", item: { type: "reasoning", text: "synthetic" } }], "pass"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const stream = [{ type: "turn.started" }, ...events, { type: "turn.completed" }]
+      .map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(stream, "jsonl", marker, "success", "codex").verdict,
+      expected, label);
+  }
+});
+
 test("OpenCode nonterminal step_finish cannot certify a prior marker", () => {
   const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
   const reply = (text) => ({ type: "text", part: { type: "text", text } });
