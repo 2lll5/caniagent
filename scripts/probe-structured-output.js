@@ -116,7 +116,7 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
     // A later tool invocation means the marker was not the final model action,
     // even if the turn subsequently completes without another model reply.
     const lastToolActivityIndex = values.findLastIndex((value) =>
-      (value?.type === "item.started" || value?.type === "item.completed") &&
+      ["item.started", "item.updated", "item.completed"].includes(value?.type) &&
       ["command_execution", "file_change", "mcp_tool_call", "collab_tool_call", "web_search"].includes(value.item?.type));
     return lastCompletedIndex > lastResponseIndex &&
       lastCompletedIndex > lastStartIndex &&

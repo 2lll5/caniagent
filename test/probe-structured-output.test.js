@@ -415,13 +415,17 @@ test("Codex marker must follow all tool activity in the completed turn", () => {
   const cases = [
     ["later command started", [reply, tool("command_execution", "item.started")], "inconclusive"],
     ["later command completed", [reply, tool("command_execution")], "inconclusive"],
+    ["later command updated", [reply, tool("command_execution", "item.updated")], "inconclusive"],
+    ["later MCP call updated", [reply, tool("mcp_tool_call", "item.updated")], "inconclusive"],
     ["later MCP call", [reply, tool("mcp_tool_call")], "inconclusive"],
     ["later file change", [reply, tool("file_change")], "inconclusive"],
     ["later web search", [reply, tool("web_search")], "inconclusive"],
     ["later collaborator call", [reply, tool("collab_tool_call")], "inconclusive"],
     ["tool before final reply", [tool("command_execution"), reply], "pass"],
+    ["tool update before final reply", [tool("command_execution", "item.updated"), reply], "pass"],
     ["later diagnostic only", [reply, { type: "diagnostic", message: "synthetic" }], "pass"],
-    ["later reasoning only", [reply, { type: "item.completed", item: { type: "reasoning", text: "synthetic" } }], "pass"]
+    ["later reasoning only", [reply, { type: "item.completed", item: { type: "reasoning", text: "synthetic" } }], "pass"],
+    ["later reasoning update only", [reply, { type: "item.updated", item: { type: "reasoning", text: "synthetic" } }], "pass"]
   ];
   for (const [label, events, expected] of cases) {
     const stream = [{ type: "turn.started" }, ...events, { type: "turn.completed" }]

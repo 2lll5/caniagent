@@ -21,7 +21,7 @@ OpenCode `--format json` may omit the final `step_finish` event in v2 (see [upst
 
 Verdicts are deliberately conservative:
 
-- `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker. For Codex JSONL, a `turn.completed` event must also follow the final model reply, and a later turn cannot reuse an earlier turn's marker if it completes without its own model reply. A later command, MCP call, file change, web search, or collaborator tool event also invalidates an earlier marker until the model replies again.
+- `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker. For Codex JSONL, a `turn.completed` event must also follow the final model reply, and a later turn cannot reuse an earlier turn's marker if it completes without its own model reply. A later command, MCP call, file change, web search, or collaborator tool event (`item.started`, `item.updated`, or `item.completed`) also invalidates an earlier marker until the model replies again.
 - `fail`: the process exited successfully but stdout violated the documented JSON/JSONL wire format.
 - `inconclusive`: the agent could not run successfully (including output-buffer overflow), an explicit failure event was present, or parsed output lacked a final model response exactly matching the marker.
 - `unknown`: no documented adapter is encoded.
