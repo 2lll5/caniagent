@@ -78,10 +78,20 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   const failed = values.some((value) => hasExplicitStructuredFailure(value, agent));
   // The final model response, not an earlier intermediate message, must
   // match the marker. Later diagnostic events do not replace model replies.
-  const finalResponse = values.reduce((last, value) => {
+  const finalResponse = values.reduce((last, value, index) => {
     const texts = modelResponseTexts(value, agent);
-    return texts.length ? texts[texts.length - 1] : last;
-  }, undefined);
+    return texts.length ? { text: texts[texts.length - 1], index } : last;
+  }, null);
+  // OpenCode v2 can omit the final step_finish event (upstream #53207).
+  // Do not require that event, but do reject an observed nonterminal finish
+  // after the final model reply.
+  const lastOpenCodeFinish = agent === "opencode" ? values.reduce((last, value, index) => {
+    return value?.type === "step_finish" && value.part?.type === "step-finish"
+      ? { index, reason: value.part.reason } : last;
+  }, null) : null;
+  const incompleteOpenCodeFinish = lastOpenCodeFinish !== null &&
+    lastOpenCodeFinish.index > (finalResponse?.index ?? -1) &&
+    lastOpenCodeFinish.reason !== "stop";
   // Missing or blank markers are not evidence; optional chaining alone would
   // otherwise treat an absent response and an undefined marker as equal.
   // Codex emits turn.completed only after a successful turn. A zero-exit
@@ -92,8 +102,9 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
     const lastCompletedIndex = values.findLastIndex((value) => value?.type === "turn.completed");
     return lastCompletedIndex > lastResponseIndex && lastCompletedIndex > lastStartIndex;
   })();
-  const markerObserved = !failed && codexCompleted && typeof marker === "string" && marker.trim().length > 0 &&
-    typeof finalResponse === "string" && finalResponse.trim() === marker;
+  const markerObserved = !failed && codexCompleted && !incompleteOpenCodeFinish &&
+    typeof marker === "string" && marker.trim().length > 0 &&
+    typeof finalResponse?.text === "string" && finalResponse.text.trim() === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 

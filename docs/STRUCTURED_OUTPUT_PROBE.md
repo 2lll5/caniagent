@@ -17,6 +17,8 @@ Classification uses the captured stdout **before** redaction and evidence trunca
 
 For Gemini CLI JSON output, a non-null `error` envelope vetoes a matching `response` marker, even if the subprocess exits with status zero. A null or absent `error` field does not invalidate a legitimate response.
 
+OpenCode `--format json` may omit the final `step_finish` event in v2 (see [upstream issue #53207](https://github.com/anomalyco/opencode/issues/53207), checked 2026-10-26). The absence of that event alone does not reject a matching final model response. If a `step_finish` is observed **after** the last model response, its reason must be `stop`; `tool-calls`, `length`, or an unrecognized reason leaves the verdict `inconclusive`. This avoids treating an explicitly unfinished step as a completed response while tolerating the upstream event-loss behavior.
+
 Verdicts are deliberately conservative:
 
 - `pass`: the process succeeded, all structured output parsed, no explicit failure event was present, and the **last recognized model response** exactly matched the marker. For Codex JSONL, a `turn.completed` event must also follow the final model reply (without a later unfinished turn).

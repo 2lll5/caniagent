@@ -375,3 +375,24 @@ test("structured probe treats stdout exceeding its bounded capture as inconclusi
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("OpenCode nonterminal step_finish cannot certify a prior marker", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const finish = (reason) => ({ type: "step_finish", part: { type: "step-finish", reason } });
+  const cases = [
+    ["missing final step_finish (upstream v2 behavior)", [reply(marker)], "pass"],
+    ["explicit stop", [reply(marker), finish("stop")], "pass"],
+    ["tool call still pending", [reply(marker), finish("tool-calls")], "inconclusive"],
+    ["generation truncated", [reply(marker), finish("length")], "inconclusive"],
+    ["unknown finish reason", [reply(marker), finish("unknown")], "inconclusive"],
+    ["later final text without step_finish", [reply("draft"), finish("tool-calls"), reply(marker)], "pass"],
+    ["later final text with stop", [reply("draft"), finish("tool-calls"), reply(marker), finish("stop")], "pass"],
+    ["later nonmatching reply", [reply(marker), finish("tool-calls"), reply("other")], "inconclusive"]
+  ];
+  for (const [name, events, expected] of cases) {
+    const output = events.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "opencode").verdict,
+      expected, name);
+  }
+});
