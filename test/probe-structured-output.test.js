@@ -496,3 +496,25 @@ test("OpenCode tool_use after marker requires a later model reply", () => {
       expected, label);
   }
 });
+
+test("Codex error items after a marker require a newer model response", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const errorItem = (type = "item.completed") => ({
+    type, item: { type: "error", message: "synthetic non-fatal diagnostic" }
+  });
+  const reasoning = { type: "item.completed", item: { type: "reasoning", text: "synthetic" } };
+  const cases = [
+    ["completed error after marker", [reply, errorItem()], "inconclusive"],
+    ["updated error after marker", [reply, errorItem("item.updated")], "inconclusive"],
+    ["started error after marker", [reply, errorItem("item.started")], "inconclusive"],
+    ["error before final reply", [errorItem(), reply], "pass"],
+    ["new reply after error", [reply, errorItem(), reply], "pass"],
+    ["reasoning after marker", [reply, reasoning], "pass"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const output = [...events, { type: "turn.completed" }].map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "codex").verdict,
+      expected, label);
+  }
+});
