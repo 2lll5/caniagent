@@ -45,6 +45,35 @@ test("marker must be observed before structured output passes", () => {
   });
 });
 
+test("structured marker requires an exact response without surrounding whitespace", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const adapters = [
+    ["codex", "jsonl", (text) => [
+      { type: "item.completed", item: { type: "agent_message", text } },
+      { type: "turn.completed" }
+    ]],
+    ["opencode", "jsonl", (text) => [{ type: "text", part: { type: "text", text } }]],
+    ["claude-code", "json", (text) => [{ type: "result", result: text }]],
+    ["gemini-cli", "json", (text) => [{ response: text }]]
+  ];
+  for (const [agent, format, eventsFor] of adapters) {
+    for (const [label, response, expected] of [
+      ["exact", marker, "pass"],
+      ["leading space", " " + marker, "inconclusive"],
+      ["trailing space", marker + " ", "inconclusive"],
+      ["leading newline", "\n" + marker, "inconclusive"],
+      ["trailing newline", marker + "\r\n", "inconclusive"]
+    ]) {
+      const events = eventsFor(response);
+      const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+      assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict,
+        expected, `${agent}: ${label}`);
+    }
+  }
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker + "\n" }), "json", marker).verdict,
+    "inconclusive", "direct parser fallback");
+});
+
 test("missing or blank markers cannot establish structured-output success", () => {
   const outputs = ['{"type":"request","input":"synthetic"}', '{"response":""}'];
   for (const marker of [undefined, "", " "]) {

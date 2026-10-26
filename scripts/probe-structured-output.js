@@ -116,7 +116,7 @@ export function classifyStructuredOutput(output, format, marker, executionOutcom
   const markerObserved = !failed && codexCompleted && !incompleteOpenCodeFinish &&
     !staleOpenCodeResponse &&
     typeof marker === "string" && marker.trim().length > 0 &&
-    typeof finalResponse?.text === "string" && finalResponse.text.trim() === marker;
+    typeof finalResponse?.text === "string" && finalResponse.text === marker;
   return { parseable: true, markerObserved, verdict: markerObserved ? "pass" : "inconclusive" };
 }
 

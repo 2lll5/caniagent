@@ -2,7 +2,7 @@
 
 `npm run probe:structured` is an opt-in executable probe for the roadmap's machine-readable output contract. It does not run as part of CI because the agent CLIs may require authentication or provider quota.
 
-The probe invokes each agent's documented non-interactive structured-output mode with a deterministic marker, then verifies that stdout is syntactically valid for the advertised wire format and that the **final recognized model-response text** exactly matches the marker. Input echoes, arbitrary metadata, and earlier responses are not positive evidence; explicit failure events invalidate an otherwise matching response.
+The probe invokes each agent's documented non-interactive structured-output mode with a deterministic marker, then verifies that stdout is syntactically valid for the advertised wire format and that the **final recognized model-response text** exactly matches the marker. Input echoes, arbitrary metadata, and earlier responses are not positive evidence; explicit failure events invalidate an otherwise matching response. A response with leading or trailing whitespace (including a newline) is **not** an exact marker match and remains `inconclusive`.
 
 | Agent | Invocation mode | Expected wire format |
 | --- | --- | --- |
