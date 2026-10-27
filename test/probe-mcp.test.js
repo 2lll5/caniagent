@@ -41,6 +41,39 @@ test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests
   assert.equal(responses.at(-1).result.tools[0].name, TOOL_NAME, "valid request must still work");
 });
 
+test("MCP stdio reports receipt write errors without disguising them as JSON parse errors", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const validList = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const recovery = spawnSync(process.execPath, [serverPath], {
+    input: "{invalid-json\n" + validList + "\n", encoding: "utf8", timeout: 5000
+  });
+  assert.equal(recovery.status, 0, recovery.stderr);
+  const [parseError, listed] = recovery.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(parseError.error.code, -32700, "malformed JSON must remain a parse error");
+  assert.equal(listed.result.tools[0].name, TOOL_NAME, "server must recover after malformed JSON");
+
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-io-"));
+  try {
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const call = { jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } };
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, notification, call].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: temp,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.notEqual(child.status, 0, "unwritable receipt must fail the server process");
+    assert.ok(child.stderr.length > 0, "receipt I/O error should be visible on stderr");
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.equal(responses.length, 1, "failed tool call must not emit a fake parse-error response");
+    assert.equal(responses[0].result.serverInfo.name, "caniagent-echo");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP probe classifies pass, fail, skip, and inconclusive", () => {
   assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }, [{ name: "caniagent_echo", matched: true }]), "pass");
   assert.equal(classifyMcpResult({ outcome: "success", stdout: "no marker", stderr: "" }), "fail");
