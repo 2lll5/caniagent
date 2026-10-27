@@ -19,6 +19,13 @@ test("Windows PATH command preflight distinguishes npm shims from missing CLIs",
     assert.equal(commandExistsOnWindowsPath("codex", env), false);
     assert.equal(commandExistsOnWindowsPath("claude", { PATH: path.join(temp, "absent"), PATHEXT: ".cmd" }), false);
     assert.equal(commandExistsOnWindowsPath("claude", { Path: temp, Pathext: ".cmd" }), true);
+    // cmd.exe resolves relative PATH entries from the child workspace, not the runner.
+    const workspace = path.join(temp, "workspace");
+    const relativeBin = path.join(workspace, "relative-bin");
+    fs.mkdirSync(relativeBin, { recursive: true });
+    fs.writeFileSync(path.join(relativeBin, "claude.cmd"), "@echo off\n");
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: "relative-bin", PATHEXT: ".cmd" }, workspace), true);
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: "relative-bin", PATHEXT: ".cmd" }, temp), false);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
