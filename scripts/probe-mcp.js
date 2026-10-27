@@ -65,7 +65,11 @@ function readRegularEvidenceFile(filePath, maxBytes) {
       if (count <= 0) return null;
       offset += count;
     }
-    if (fs.fstatSync(fd).size !== opened.size) return null;
+    // Reject same-size in-place rewrites detected during the descriptor read.
+    // Timestamps are best-effort evidence, not a guarantee against a hostile writer.
+    const after = fs.fstatSync(fd);
+    if (after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+      || after.ctimeMs !== opened.ctimeMs) return null;
     return bytes.toString("utf8");
   } finally { fs.closeSync(fd); }
 }
