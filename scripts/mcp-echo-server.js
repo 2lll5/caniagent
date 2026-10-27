@@ -92,9 +92,18 @@ function main() {
       }
       // A valid initialize response alone does not complete the MCP handshake.
       // The client must also send a valid notifications/initialized notification.
+      // MCP notifications may omit params, but supplied params (and _meta) must be objects.
+      // Do not treat a malformed notification as proof that the client finished initialization.
+      const notificationParams = message?.params;
+      const validNotificationParams = notificationParams === undefined
+        || (notificationParams !== null && typeof notificationParams === "object"
+          && !Array.isArray(notificationParams)
+          && (notificationParams._meta === undefined
+            || (notificationParams._meta !== null && typeof notificationParams._meta === "object"
+              && !Array.isArray(notificationParams._meta))));
       if (message?.method === "notifications/initialized"
         && message.jsonrpc === "2.0" && message.id === undefined
-        && initializeResponded && !initialized) {
+        && validNotificationParams && initializeResponded && !initialized) {
         initialized = true;
         if (process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
           fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });

@@ -254,7 +254,11 @@ test("MCP server records initialization only after a protocol handshake", () => 
     for (const invalidSequence of [
       [notification, { jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }],
       [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, id: 3 }],
-      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, jsonrpc: "1.0" }]
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, jsonrpc: "1.0" }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: null }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: [] }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: { _meta: null } }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: { _meta: [] } }]
     ]) {
       const rejected = run(invalidSequence);
       assert.equal(rejected.status, 0, rejected.stderr);
@@ -263,6 +267,11 @@ test("MCP server records initialization only after a protocol handshake", () => 
     const complete = run([{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, notification]);
     assert.equal(complete.status, 0, complete.stderr);
     assert.equal(readMcpInitialization(markerPath), true);
+    fs.rmSync(markerPath);
+    const withMeta = run([{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams },
+      { ...notification, params: { _meta: { source: "test" } } }]);
+    assert.equal(withMeta.status, 0, withMeta.stderr);
+    assert.equal(readMcpInitialization(markerPath), true, "valid optional _meta must remain supported");
     fs.writeFileSync(markerPath, "corrupt");
     assert.equal(readMcpInitialization(markerPath), false);
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
