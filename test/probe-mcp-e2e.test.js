@@ -76,7 +76,11 @@ console.log(mode === "echo-only" ? process.env.CANIAGENT_MCP_EXPECTED_TEXT : "fa
       assert.equal(claude.serverInitialized, initialized, mode);
       assert.equal(claude.toolCallsObserved, count, mode);
       for (const other of output.results.filter((result) => result.agent !== "claude-code")) {
-        assert.equal(other.verdict, "skip", `${mode}: ${other.agent} must not run a real CLI`);
+        // Windows shell:true reports missing commands as a nonzero shell exit, not ENOENT.
+        // PATH contains only our fake CLI, so no other provider can be executed.
+        assert.equal(other.verdict, windows ? "inconclusive" : "skip",
+          `${mode}: ${other.agent} must not run a real CLI`);
+        assert.notEqual(other.version.outcome, "success", `${mode}: ${other.agent} unexpectedly resolved`);
       }
     }
   } finally {
