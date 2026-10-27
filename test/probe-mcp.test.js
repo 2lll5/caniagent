@@ -1,25 +1,628 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult } from "../scripts/probe-mcp.js";
+import { handleMcpMessage, TOOL_NAME, MCP_PROTOCOL_VERSION } from "../scripts/mcp-echo-server.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult, classifyMcpEvidence, readMcpReceipt, readMcpInitialization, commandExistsOnWindowsPath } from "../scripts/probe-mcp.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
+
+test("Windows PATH command preflight distinguishes npm shims from missing CLIs", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-windows-path-"));
+  try {
+    fs.writeFileSync(path.join(temp, "claude.cmd"), "@echo off\n");
+    const env = { PATH: temp, PATHEXT: ".cmd;.exe" };
+    assert.equal(commandExistsOnWindowsPath("claude", env), true);
+    assert.equal(commandExistsOnWindowsPath("claude.cmd", env), true);
+    assert.equal(commandExistsOnWindowsPath("codex", env), false);
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: path.join(temp, "absent"), PATHEXT: ".cmd" }), false);
+    assert.equal(commandExistsOnWindowsPath("claude", { Path: temp, Pathext: ".cmd" }), true);
+    // cmd.exe resolves relative PATH entries from the child workspace, not the runner.
+    const workspace = path.join(temp, "workspace");
+    const relativeBin = path.join(workspace, "relative-bin");
+    fs.mkdirSync(relativeBin, { recursive: true });
+    fs.writeFileSync(path.join(relativeBin, "claude.cmd"), "@echo off\n");
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: "relative-bin", PATHEXT: ".cmd" }, workspace), true);
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: "relative-bin", PATHEXT: ".cmd" }, temp), false);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
 
 test("MCP echo server exposes and calls deterministic tool", () => {
   const listed = handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" });
   assert.equal(listed.result.tools[0].name, TOOL_NAME);
   const called = handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } });
   assert.equal(called.result.content[0].text, MCP_MARKER);
+  const extra = handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/call",
+    params: { name: TOOL_NAME, arguments: { text: MCP_MARKER, extra: "unexpected" } } });
+  assert.equal(extra.error.code, -32602, "additionalProperties: false must be enforced");
+});
+
+test("legacy MCP ping responds without forging initialization or tool evidence", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-ping-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const ping = (id, params) => ({ jsonrpc: "2.0", id, method: "ping", ...(params === undefined ? {} : { params }) });
+  const initialize = { jsonrpc: "2.0", id: 3, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "ping-test", version: "1" }
+  } };
+  try {
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [
+        ping(1), ping(2, {}), { jsonrpc: "2.0", method: "ping" },
+        initialize, ping(4, null),
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+        ping(5, { _meta: {} })
+      ].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.deepEqual(responses, [
+      { jsonrpc: "2.0", id: 1, result: {} },
+      { jsonrpc: "2.0", id: 2, result: {} },
+      { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid ping request" } },
+      { jsonrpc: "2.0", id: 3, result: {
+        protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} },
+        serverInfo: { name: "caniagent-echo", version: "1.0.0" }
+      } },
+      { jsonrpc: "2.0", id: 4, result: {} },
+      { jsonrpc: "2.0", id: 5, result: {} }
+    ]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "ping must never create a tool receipt");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true), "fail");
+    assert.equal(handleMcpMessage(ping(9, [])).error.code, -32600);
+    assert.equal(handleMcpMessage(ping(9, 7)).error.code, -32600);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP initialize negotiates the server-supported legacy protocol revision", () => {
+  const base = { jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "test", version: "1" }
+  } };
+  const supported = handleMcpMessage(base);
+  assert.equal(supported.result.protocolVersion, MCP_PROTOCOL_VERSION);
+  const unknown = handleMcpMessage({
+    ...base, params: { ...base.params, protocolVersion: "2099-01-01" }
+  });
+  assert.equal(unknown.result.protocolVersion, MCP_PROTOCOL_VERSION,
+    "must not echo an unsupported protocol version");
+  assert.notEqual(unknown.result.protocolVersion, "2099-01-01");
+});
+
+test("MCP stdio rejects tool discovery until the initialized notification", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const list = (id) => ({ jsonrpc: "2.0", id, method: "tools/list" });
+  const initialize = { jsonrpc: "2.0", id: 2, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "test", version: "1" }
+  } };
+  const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+  const child = spawnSync(process.execPath, [serverPath], {
+    input: [list(1), initialize, list(3), notification, list(4)].map(JSON.stringify).join("\n") + "\n",
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 0, child.stderr);
+  const responses = child.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(responses.length, 4, "notification must not produce a response");
+  assert.equal(responses[0].error.code, -32000, "discovery before initialize is rejected");
+  assert.equal(responses[1].result.protocolVersion, MCP_PROTOCOL_VERSION);
+  assert.equal(responses[2].error.code, -32000, "initialize response alone is insufficient");
+  assert.equal(responses[3].result.tools[0].name, TOOL_NAME, "discovery succeeds after initialized");
+});
+
+test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const invalidMessages = [
+    "null", "[]", "42", "true", '"unexpected"',
+    JSON.stringify({ jsonrpc: "1.0", id: 1, method: "tools/list" }),
+    JSON.stringify({ jsonrpc: "2.0", method: "tools/list" }),
+    JSON.stringify({ jsonrpc: "2.0", id: null, method: "tools/list" })
+  ];
+  const validList = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const initialize = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "test", version: "1" }
+  } });
+  const initialized = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
+  const child = spawnSync(process.execPath, [serverPath], {
+    input: [...invalidMessages, initialize, initialized, validList].join("\n") + "\n",
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 0, child.stderr);
+  const responses = child.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(responses.length, invalidMessages.length + 2);
+  for (const response of responses.slice(0, invalidMessages.length)) {
+    assert.equal(response.error?.code, -32600, "invalid request must not be silently ignored or called a parse error");
+  }
+  assert.equal(responses.at(-2).result.protocolVersion, MCP_PROTOCOL_VERSION);
+  assert.equal(responses.at(-1).result.tools[0].name, TOOL_NAME, "valid post-handshake request must work");
+});
+
+test("MCP stdio reports receipt write errors without disguising them as JSON parse errors", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const validInitialize = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "test", version: "1" }
+  } });
+  const recovery = spawnSync(process.execPath, [serverPath], {
+    input: "{invalid-json\n" + validInitialize + "\n", encoding: "utf8", timeout: 5000
+  });
+  assert.equal(recovery.status, 0, recovery.stderr);
+  const [parseError, initialized] = recovery.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(parseError.error.code, -32700, "malformed JSON must remain a parse error");
+  assert.equal(initialized.result.protocolVersion, MCP_PROTOCOL_VERSION, "server must recover after malformed JSON");
+
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-io-"));
+  try {
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const call = { jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } };
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, notification, call].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: temp,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.notEqual(child.status, 0, "unwritable receipt must fail the server process");
+    assert.ok(child.stderr.length > 0, "receipt I/O error should be visible on stderr");
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.equal(responses.length, 1, "failed tool call must not emit a fake parse-error response");
+    assert.equal(responses[0].result.serverInfo.name, "caniagent-echo");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
 test("MCP probe classifies pass, fail, skip, and inconclusive", () => {
-  assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }), "pass");
+  assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }, [{ name: "caniagent_echo", matched: true }]), "pass");
   assert.equal(classifyMcpResult({ outcome: "success", stdout: "no marker", stderr: "" }), "fail");
   assert.equal(classifyMcpResult({ outcome: "not_found", stdout: "", stderr: "" }), "skip");
   assert.equal(classifyMcpResult({ outcome: "failed", stdout: "", stderr: "auth required" }), "inconclusive");
+});
+
+test("MCP prompt echoes never count as tool-call evidence", () => {
+  const execution = { outcome: "success", stdout: `Prompt: ${MCP_MARKER}`, stderr: MCP_MARKER };
+  assert.equal(classifyMcpResult(execution), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "caniagent_echo", matched: false }]), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "other", matched: true }]), "fail");
+  assert.equal(classifyMcpResult(execution, [
+    { name: "caniagent_echo", matched: true }, { name: "caniagent_echo", matched: true }
+  ]), "fail");
+  assert.equal(classifyMcpResult(execution, [{ name: "caniagent_echo", matched: true }]), "pass");
+});
+
+test("MCP server records rejected and valid tool-call attempts without exposing arguments", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-"));
+  try {
+    const request = (name, text) => JSON.stringify({
+      jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: { text } }
+    });
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const runRequests = (requests, receiptPath) => {
+      const initialize = JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {},
+          clientInfo: { name: "test", version: "1" } } });
+      const initialized = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
+      const run = spawnSync(process.execPath, [serverPath], {
+        input: [initialize, initialized, ...requests].join("\n") + "\n", encoding: "utf8", timeout: 5000,
+        env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+          CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+      });
+      assert.equal(run.status, 0, run.stderr);
+      assert.equal(run.stdout.trim().split("\n").length, requests.length + 1);
+      return fs.readFileSync(receiptPath, "utf8").trim().split("\n").map(JSON.parse);
+    };
+    const attempts = runRequests([
+      request("wrong-tool", MCP_MARKER),
+      request(TOOL_NAME, null),
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: TOOL_NAME, arguments: { text: MCP_MARKER, extra: "unexpected" } } }),
+      request(TOOL_NAME, MCP_MARKER)
+    ], path.join(temp, "rejected.jsonl"));
+    assert.deepEqual(attempts, [
+      { name: null, matched: false },
+      { name: TOOL_NAME, matched: false },
+      { name: TOOL_NAME, matched: false },
+      { name: TOOL_NAME, matched: true }
+    ]);
+    assert.equal(attempts.some((entry) => Object.hasOwn(entry, "text")), false);
+    assert.equal(classifyMcpResult({ outcome: "success" }, attempts), "fail");
+
+    const valid = runRequests([request(TOOL_NAME, MCP_MARKER)], path.join(temp, "valid.jsonl"));
+    assert.deepEqual(valid, [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(classifyMcpResult({ outcome: "success" }, valid), "pass");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP calls before initialize never become passing evidence", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-call-order-"));
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {},
+      clientInfo: { name: "test", version: "1" } } };
+  const call = { jsonrpc: "2.0", id: 2, method: "tools/call",
+    params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } };
+  const runSequence = (requests, suffix) => {
+    const receiptPath = path.join(temp, `receipt-${suffix}.jsonl`);
+    const initializedPath = path.join(temp, `initialized-${suffix}`);
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: requests.map((request) => JSON.stringify(request)).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stdout.trim().split("\n").length,
+      requests.filter((request) => request.method !== "notifications/initialized" || request.id !== undefined).length);
+    return { receipt: readMcpReceipt(receiptPath), initialized: readMcpInitialization(initializedPath),
+      responses: child.stdout.trim().split("\n").map(JSON.parse) };
+  };
+  try {
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const before = runSequence([call, initialize, notification], "before");
+    assert.deepEqual(before.receipt, [{ name: TOOL_NAME, matched: false }]);
+    assert.equal(before.responses[0].error.code, -32000, "pre-handshake call must be rejected");
+    assert.equal(before.initialized, true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, before.receipt, true), "fail");
+    const after = runSequence([initialize, notification, call], "after");
+    assert.deepEqual(after.receipt, [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(after.responses.at(-1).result.content[0].text, MCP_MARKER);
+    assert.equal(after.initialized, true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, after.receipt, true), "pass");
+    for (const [name, requests] of [
+      ["missing", [initialize, call]],
+      ["early", [notification, initialize, call]],
+      ["request-id", [initialize, { ...notification, id: 3 }, call]],
+      ["wrong-version", [initialize, { ...notification, jsonrpc: "1.0" }, call]]
+    ]) {
+      const attempt = runSequence(requests, name);
+      assert.deepEqual(attempt.receipt, [{ name: TOOL_NAME, matched: false }], name);
+      assert.equal(attempt.responses.at(-1).error.code, -32000, name);
+      assert.equal(attempt.initialized, false, name);
+      assert.equal(classifyMcpEvidence({ outcome: "success" }, attempt.receipt, false), "inconclusive", name);
+    }
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP rejects malformed tool-call envelopes without losing attempt evidence", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-invalid-envelope-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.jsonl");
+    const initializedPath = path.join(temp, "initialized");
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const validCall = { jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } };
+    const invalidCalls = [
+      { ...validCall, jsonrpc: "1.0" },
+      { id: 2, method: "tools/call", params: validCall.params },
+      { jsonrpc: "2.0", method: "tools/call", params: validCall.params },
+      { ...validCall, id: null },
+      { ...validCall, id: {} }
+    ];
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, { jsonrpc: "2.0", method: "notifications/initialized" }, ...invalidCalls, validCall]
+        .map((item) => JSON.stringify(item)).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.equal(responses.length, invalidCalls.length + 2);
+    for (const response of responses.slice(1, -1)) {
+      assert.equal(response.error.code, -32600);
+      assert.equal(response.id, null);
+    }
+    assert.equal(responses.at(-1).result.content[0].text, MCP_MARKER);
+    const receipt = readMcpReceipt(receiptPath);
+    assert.deepEqual(receipt, [
+      ...invalidCalls.map(() => ({ name: null, matched: false })),
+      { name: TOOL_NAME, matched: true }
+    ]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, receipt, true), "fail");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-invalid-receipt-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const valid = JSON.stringify({ name: TOOL_NAME, matched: true });
+  try {
+    assert.equal(readMcpReceipt(receiptPath), null, "missing receipt is inconclusive");
+    fs.writeFileSync(receiptPath, "");
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "existing empty receipt means no calls");
+    for (const [name, content] of Object.entries({
+      duplicateName: `{"name":null,"name":"${TOOL_NAME}","matched":true}`,
+      duplicateMatched: `{"name":"${TOOL_NAME}","matched":false,"matched":true}`,
+      reorderedFields: `{"matched":true,"name":"${TOOL_NAME}"}`,
+      noncanonicalWhitespace: `{ "name":"${TOOL_NAME}","matched":true}`,
+      extraField: JSON.stringify({ name: TOOL_NAME, matched: true, extra: "invalid" }),
+      wrongType: JSON.stringify({ name: TOOL_NAME, matched: "true" }),
+      impossibleMatch: JSON.stringify({ name: null, matched: true }),
+      unknownName: JSON.stringify({ name: "other", matched: false }),
+      missingField: JSON.stringify({ matched: true }),
+      nullRecord: "null",
+      arrayRecord: "[]",
+      mixedRecords: valid + "\n" + JSON.stringify({ name: TOOL_NAME, matched: 1 }),
+      blankLine: valid + "\n\n",
+      invalidJson: "{invalid",
+      unterminatedRecord: valid,
+      unterminatedLastRecord: valid + "\n" + valid,
+      oversized: "x".repeat(65537)
+    })) {
+      fs.writeFileSync(receiptPath, content);
+      const parsed = readMcpReceipt(receiptPath);
+      assert.equal(parsed, null, name);
+      assert.equal(parsed === null ? "inconclusive" : classifyMcpResult({ outcome: "success" }, parsed),
+        "inconclusive", name);
+    }
+    fs.writeFileSync(receiptPath, valid + "\n");
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: null, matched: false }) + "\n" + valid + "\n");
+    assert.equal(readMcpReceipt(receiptPath).length, 2, "rejected attempts remain countable");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP evidence readers reject oversized, symlinked, and nonregular files", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-evidence-files-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const directoryPath = path.join(temp, "directory");
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+
+    fs.mkdirSync(directoryPath);
+    assert.equal(readMcpReceipt(directoryPath), null, "directory cannot be receipt evidence");
+    assert.equal(readMcpInitialization(directoryPath), false, "directory cannot be a handshake marker");
+
+    if (process.platform !== "win32") {
+      const receiptLink = path.join(temp, "receipt-link");
+      const initializedLink = path.join(temp, "initialized-link");
+      fs.symlinkSync(receiptPath, receiptLink);
+      fs.symlinkSync(initializedPath, initializedLink);
+      assert.equal(readMcpReceipt(receiptLink), null, "symlink cannot be receipt evidence");
+      assert.equal(readMcpInitialization(initializedLink), false, "symlink cannot be a handshake marker");
+    }
+
+    fs.writeFileSync(receiptPath, "x".repeat(65537));
+    fs.writeFileSync(initializedPath, "initialized\n" + "x".repeat(1024 * 1024));
+    assert.equal(readMcpReceipt(receiptPath), null, "oversized receipt is inconclusive");
+    assert.equal(readMcpInitialization(initializedPath), false, "oversized marker is not a handshake");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath),
+      readMcpInitialization(initializedPath)), "inconclusive");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP evidence readers tolerate short reads but reject premature EOF", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-short-read-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const originalReadSync = fs.readSync;
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    let shortReads = 0;
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      shortReads++;
+      return originalReadSync.call(this, fd, buffer, offset, Math.min(length, 2), position);
+    };
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.ok(shortReads > 2, "both readers must consume multiple chunks");
+
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      if (position >= 2) return 0;
+      return originalReadSync.call(this, fd, buffer, offset, Math.min(length, 2), position);
+    };
+    assert.equal(readMcpReceipt(receiptPath), null, "truncated receipt remains inconclusive");
+    assert.equal(readMcpInitialization(initializedPath), false, "partial marker cannot prove handshake");
+  } finally {
+    fs.readSync = originalReadSync;
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("MCP evidence rejects same-inode metadata changes before descriptor reading", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-preopen-race-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const originalFstat = fs.fstatSync;
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    for (const [label, file, reader, expected, field] of [
+      ["receipt mtime", receiptPath, readMcpReceipt, null, "mtimeMs"],
+      ["receipt ctime", receiptPath, readMcpReceipt, null, "ctimeMs"],
+      ["initialization mtime", initializedPath, readMcpInitialization, false, "mtimeMs"],
+      ["initialization ctime", initializedPath, readMcpInitialization, false, "ctimeMs"]
+    ]) {
+      let calls = 0;
+      fs.fstatSync = function (fd, ...args) {
+        const stat = originalFstat.call(this, fd, ...args);
+        calls++;
+        // Preserve Stats methods such as isFile() while simulating an edit
+        // after lstat but before the first fstat on the opened descriptor.
+        return Object.assign(Object.create(Object.getPrototypeOf(stat)), stat,
+          { [field]: stat[field] + 1000 });
+      };
+      assert.equal(reader(file), expected, label + " must reject pre-open metadata drift");
+      assert.equal(calls, 1, label + " must reject before reading any bytes");
+    }
+  } finally {
+    fs.fstatSync = originalFstat;
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("MCP evidence rejects same-size metadata changes during descriptor reads", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-metadata-race-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const originalFstat = fs.fstatSync;
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    for (const [label, file, reader, expected, field] of [
+      ["receipt mtime", receiptPath, readMcpReceipt, null, "mtimeMs"],
+      ["receipt ctime", receiptPath, readMcpReceipt, null, "ctimeMs"],
+      ["initialization mtime", initializedPath, readMcpInitialization, false, "mtimeMs"],
+      ["initialization ctime", initializedPath, readMcpInitialization, false, "ctimeMs"]
+    ]) {
+      let calls = 0;
+      fs.fstatSync = function (fd, ...args) {
+        const stat = originalFstat.call(this, fd, ...args);
+        return ++calls === 2 ? { ...stat, [field]: stat[field] + 1000 } : stat;
+      };
+      assert.equal(reader(file), expected, label + " must reject metadata drift");
+      assert.equal(calls, 2, label + " must compare before and after reading");
+    }
+  } finally {
+    fs.fstatSync = originalFstat;
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("MCP evidence rejects pathname replacement between lstat and open", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-evidence-race-"));
+  const validReceipt = JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n";
+  try {
+    for (const [label, content, reader, rejected] of [
+      ["receipt", validReceipt, readMcpReceipt, null],
+      ["initialized", "initialized\n", readMcpInitialization, false]
+    ]) {
+      const file = path.join(temp, label);
+      fs.writeFileSync(file, content);
+      const originalLstat = fs.lstatSync;
+      let replaced = false;
+      fs.lstatSync = function (candidate, ...args) {
+        const stat = originalLstat.call(this, candidate, ...args);
+        if (candidate === file && !replaced) {
+          replaced = true;
+          fs.renameSync(file, file + ".original");
+          fs.writeFileSync(file, content);
+        }
+        return stat;
+      };
+      try {
+        assert.equal(reader(file), rejected, label + " must reject a different inode");
+        assert.equal(replaced, true, "test must exercise the pathname swap");
+      } finally { fs.lstatSync = originalLstat; }
+    }
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP evidence distinguishes absent handshake from a genuine zero-call result", () => {
+  const success = { outcome: "success" };
+  const valid = [{ name: TOOL_NAME, matched: true }];
+  assert.equal(classifyMcpEvidence(success, [], false), "inconclusive");
+  assert.equal(classifyMcpEvidence(success, [], true), "fail");
+  assert.equal(classifyMcpEvidence(success, valid, true), "pass");
+  assert.equal(classifyMcpEvidence(success, valid, false), "inconclusive");
+  assert.equal(classifyMcpEvidence(success, null, true), "inconclusive");
+  assert.equal(classifyMcpEvidence({ outcome: "not_found" }, [], false), "skip");
+});
+
+test("MCP handshake creates a zero-call receipt; missing evidence stays inconclusive", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-zero-call-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.jsonl");
+    const initializedPath = path.join(temp, "initialized");
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, notification].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "completed handshake must create empty receipt");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true), "fail");
+    fs.rmSync(receiptPath);
+    assert.equal(readMcpReceipt(receiptPath), null);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true),
+      "inconclusive", "lost receipt must not become a false zero-call failure");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("MCP server records initialization only after a protocol handshake", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-initialize-"));
+  const markerPath = path.join(temp, "initialized");
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const run = (requests) => spawnSync(process.execPath, [serverPath], {
+    input: (Array.isArray(requests) ? requests : [requests]).map(JSON.stringify).join("\n") + "\n",
+    encoding: "utf8", timeout: 5000,
+    env: { ...process.env, CANIAGENT_MCP_INITIALIZED_PATH: markerPath }
+  });
+  try {
+    assert.equal(readMcpInitialization(markerPath), false);
+    const list = run({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    assert.equal(list.status, 0, list.stderr);
+    assert.equal(JSON.parse(list.stdout.trim()).error.code, -32000, "tools/list requires initialization");
+    assert.equal(readMcpInitialization(markerPath), false, "listing is not initialization");
+    const validParams = { protocolVersion: "2025-06-18", capabilities: {},
+      clientInfo: { name: "test", version: "1" } };
+    for (const invalid of [
+      { jsonrpc: "2.0", id: 3, method: "initialize" },
+      { jsonrpc: "2.0", id: 3, method: "initialize", params: { protocolVersion: "2025-06-18" } },
+      { jsonrpc: "2.0", method: "initialize", params: validParams },
+      { id: 3, method: "initialize", params: validParams }
+    ]) {
+      const rejected = run(invalid);
+      assert.equal(rejected.status, 0, rejected.stderr);
+      assert.equal(JSON.parse(rejected.stdout.trim()).error.code, -32600);
+      assert.equal(readMcpInitialization(markerPath), false, "invalid initialize must not create evidence");
+    }
+    const initialized = run({ jsonrpc: "2.0", id: 2, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } } });
+    assert.equal(initialized.status, 0, initialized.stderr);
+    assert.equal(JSON.parse(initialized.stdout.trim()).result.serverInfo.name, "caniagent-echo");
+    assert.equal(readMcpInitialization(markerPath), false, "initialize response alone is insufficient");
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    for (const invalidSequence of [
+      [notification, { jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, id: 3 }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, jsonrpc: "1.0" }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: null }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: [] }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: { _meta: null } }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, params: { _meta: [] } }]
+    ]) {
+      const rejected = run(invalidSequence);
+      assert.equal(rejected.status, 0, rejected.stderr);
+      assert.equal(readMcpInitialization(markerPath), false, "invalid notification must not create evidence");
+    }
+    const complete = run([{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, notification]);
+    assert.equal(complete.status, 0, complete.stderr);
+    assert.equal(readMcpInitialization(markerPath), true);
+    fs.rmSync(markerPath);
+    const withMeta = run([{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams },
+      { ...notification, params: { _meta: { source: "test" } } }]);
+    assert.equal(withMeta.status, 0, withMeta.stderr);
+    assert.equal(readMcpInitialization(markerPath), true, "valid optional _meta must remain supported");
+    fs.writeFileSync(markerPath, "corrupt");
+    assert.equal(readMcpInitialization(markerPath), false);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
 test("MCP fixtures configure only isolated project/home paths", () => {

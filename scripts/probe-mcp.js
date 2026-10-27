@@ -11,11 +11,26 @@ const SERVER_PATH = fileURLToPath(new URL("./mcp-echo-server.js", import.meta.ur
 export const MCP_MARKER = "CANIAGENT_MCP_ECHO_OK";
 
 export const MCP_PROBE_SPECS = {
-  codex: { args: (prompt) => ["exec", "--ephemeral", prompt] },
+  codex: { args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
   "claude-code": { args: (prompt) => ["-p", prompt] },
   "gemini-cli": { args: (prompt) => ["-p", prompt] },
   opencode: { args: (prompt) => ["run", prompt] }
 };
+
+// On Windows, shell:true turns a missing executable into a shell exit code
+// rather than ENOENT. Check PATH shims before invoking cmd.exe so a genuinely
+// absent provider is reported as "skip", not a failed MCP behavior probe.
+// Resolve relative PATH entries against the child CLI's cwd, not this runner's.
+export function commandExistsOnWindowsPath(command, env = process.env, cwd = process.cwd()) {
+  const envValue = (name) => env[name] ?? Object.entries(env).find(([key]) => key.toUpperCase() === name)?.[1];
+  const directories = (envValue("PATH") ?? "").split(path.delimiter).filter(Boolean);
+  const extensions = (envValue("PATHEXT") || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const names = path.extname(command) ? [command] : [command, ...extensions.map((ext) => command + ext)];
+  return directories.some((dir) => names.some((name) => {
+    try { return fs.statSync(path.join(path.resolve(cwd, dir.replace(/^"|"$/g, "")), name)).isFile(); }
+    catch { return false; }
+  }));
+}
 
 export function createMcpFixture(baseDir, agentId, serverPath = SERVER_PATH) {
   const workspace = path.join(baseDir, "workspace");
@@ -38,13 +53,96 @@ export function createMcpFixture(baseDir, agentId, serverPath = SERVER_PATH) {
   return { workspace, command, args };
 }
 
-export function classifyMcpResult(execution) {
+export function classifyMcpResult(execution, receipt = []) {
   if (execution.outcome === "not_found") return "skip";
   if (execution.outcome !== "success") return "inconclusive";
-  return `${execution.stdout}\n${execution.stderr}`.includes(MCP_MARKER) ? "pass" : "fail";
+  // The prompt contains MCP_MARKER; an echoed prompt cannot prove tool use.
+  // Only a server-side receipt can establish that the MCP tool was called.
+  return receipt.length === 1 && receipt[0]?.name === "caniagent_echo" && receipt[0]?.matched === true ? "pass" : "fail";
+}
+
+// Pin evidence to a verified file descriptor. A pathname may be replaced
+// between lstat and open; never read the substituted file or unbounded data.
+function readRegularEvidenceFile(filePath, maxBytes) {
+  const before = fs.lstatSync(filePath);
+  if (!before.isFile() || before.size > maxBytes) return null;
+  // A regular pathname can be swapped for a FIFO after lstat. On POSIX,
+  // O_NONBLOCK prevents open from hanging before fstat can reject the FIFO.
+  // It does not change reads from regular files.
+  const flags = fs.constants.O_RDONLY | (process.platform === "win32" ? 0
+    : (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
+  const fd = fs.openSync(filePath, flags);
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.size !== before.size
+      || opened.dev !== before.dev || opened.ino !== before.ino
+      // Catch detectable in-place edits between pathname inspection and open.
+      || opened.mtimeMs !== before.mtimeMs || opened.ctimeMs !== before.ctimeMs) return null;
+    const bytes = Buffer.alloc(opened.size);
+    // A regular file can return a short read before EOF. Read the verified size.
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+      if (count <= 0) return null;
+      offset += count;
+    }
+    // Reject same-size in-place rewrites detected during the descriptor read.
+    // Timestamps are best-effort evidence, not a guarantee against a hostile writer.
+    const after = fs.fstatSync(fd);
+    if (after.size !== opened.size || after.mtimeMs !== opened.mtimeMs
+      || after.ctimeMs !== opened.ctimeMs) return null;
+    return bytes.toString("utf8");
+  } finally { fs.closeSync(fd); }
+}
+
+export function readMcpReceipt(receiptPath) {
+  try {
+    // No receipt file is missing evidence, not proof of zero tool calls.
+    // The server creates an empty file when the MCP handshake completes.
+    const content = readRegularEvidenceFile(receiptPath, 65536);
+    if (content === null) return null;
+    if (!content) return [];
+    // Every server-written JSONL record ends with a newline. A missing terminator
+    // can indicate an interrupted write, so do not treat it as complete evidence.
+    if (!content.endsWith("\n")) return null;
+    const lines = content.split("\n");
+    if (lines.at(-1) === "") lines.pop();
+    if (lines.some((line) => !line.trim())) return null;
+    const receipt = lines.map((line) => JSON.parse(line));
+    // A parseable JSONL record is not necessarily a valid server receipt.
+    // Reject unknown fields and types rather than turning corrupt evidence into a "fail".
+    return receipt.every((entry, index) => entry && typeof entry === "object" && !Array.isArray(entry)
+      && Object.keys(entry).length === 2 && Object.hasOwn(entry, "name")
+      && Object.hasOwn(entry, "matched")
+      && (entry.name === "caniagent_echo" || entry.name === null)
+      && typeof entry.matched === "boolean"
+      && (entry.name !== null || entry.matched === false)
+      // The server emits canonical JSON.stringify({ name, matched }) lines. Reject duplicate
+      // JSON keys, reordered keys and noncanonical text before trusting a receipt.
+      && JSON.stringify({ name: entry.name, matched: entry.matched }) === lines[index]) ? receipt : null;
+  } catch { return null; }
+}
+
+// A successful agent process is not negative MCP evidence unless its server
+// actually completed the protocol initialize handshake.
+export function readMcpInitialization(initializedPath) {
+  try {
+    // A substituted or nonregular file must not establish initialization.
+    return readRegularEvidenceFile(initializedPath, Buffer.byteLength("initialized\n")) === "initialized\n";
+  } catch (error) { return error?.code === "ENOENT" ? false : null; }
+}
+
+export function classifyMcpEvidence(execution, receipt, initialized) {
+  if (execution.outcome === "not_found") return "skip";
+  if (receipt === null || initialized !== true) return "inconclusive";
+  return classifyMcpResult(execution, receipt);
 }
 
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
+  if (process.platform === "win32" && !commandExistsOnWindowsPath(command, env, cwd)) {
+    return { command: redactProbeOutput([command, ...args].join(" ")),
+      outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" };
+  }
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   return {
     command: redactProbeOutput([command, ...args].join(" ")),
@@ -71,10 +169,20 @@ function main() {
       const env = isolatedProbeEnvironment(home);
       const version = run(agent.command, ["--version"], { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = `Call the caniagent_echo MCP tool exactly once with text ${MCP_MARKER}. Reply with only the tool result.`;
+      const receiptPath = path.join(temp, "tool-call-receipt.jsonl");
+      const initializedPath = path.join(temp, "mcp-initialized");
+      const probeEnv = { ...env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath, CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER };
       const execution = version.outcome === "not_found"
         ? { command: agent.command, outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" }
-        : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env });
-      results.push({ agent: agent.id, observedAt, version, execution, verdict: classifyMcpResult(execution) });
+        : run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env: probeEnv });
+      // Only name/match receipts leave the server; never persist tool arguments.
+      // Malformed or oversized evidence is inconclusive, not a negative MCP result.
+      const receipt = readMcpReceipt(receiptPath);
+      const serverInitialized = readMcpInitialization(initializedPath);
+      results.push({ agent: agent.id, observedAt, version, execution,
+        serverInitialized, toolCallsObserved: receipt?.length ?? null,
+        verdict: classifyMcpEvidence(execution, receipt, serverInitialized) });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
     }
