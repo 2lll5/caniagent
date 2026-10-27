@@ -112,6 +112,49 @@ test("MCP calls before initialize never become passing evidence", () => {
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("MCP rejects malformed tool-call envelopes without losing attempt evidence", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-invalid-envelope-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.jsonl");
+    const initializedPath = path.join(temp, "initialized");
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const validCall = { jsonrpc: "2.0", id: 2, method: "tools/call",
+      params: { name: TOOL_NAME, arguments: { text: MCP_MARKER } } };
+    const invalidCalls = [
+      { ...validCall, jsonrpc: "1.0" },
+      { id: 2, method: "tools/call", params: validCall.params },
+      { jsonrpc: "2.0", method: "tools/call", params: validCall.params },
+      { ...validCall, id: null },
+      { ...validCall, id: {} }
+    ];
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, ...invalidCalls, validCall].map((item) => JSON.stringify(item)).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath,
+        CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.equal(responses.length, invalidCalls.length + 2);
+    for (const response of responses.slice(1, -1)) {
+      assert.equal(response.error.code, -32600);
+      assert.equal(response.id, null);
+    }
+    assert.equal(responses.at(-1).result.content[0].text, MCP_MARKER);
+    const receipt = readMcpReceipt(receiptPath);
+    assert.deepEqual(receipt, [
+      ...invalidCalls.map(() => ({ name: null, matched: false })),
+      { name: TOOL_NAME, matched: true }
+    ]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, receipt, true), "fail");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-invalid-receipt-"));
   const receiptPath = path.join(temp, "receipt.jsonl");

@@ -48,6 +48,9 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
     };
   }
   if (message.method === "tools/call") {
+    // A tools/call must be a JSON-RPC request, not a notification or malformed envelope.
+    const validRequest = message.jsonrpc === "2.0"
+      && (typeof message.id === "string" || (typeof message.id === "number" && Number.isFinite(message.id)));
     const name = message.params?.name;
     const args = message.params?.arguments;
     // Match the advertised inputSchema, including additionalProperties: false.
@@ -57,7 +60,9 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
     // Count rejected attempts too: a bad call followed by a valid one is not "exactly once".
     // The process records calls made before initialize as unmatched.
     // Never persist caller-provided tool names or arguments in the receipt.
-    onToolCall({ name: name === TOOL_NAME ? TOOL_NAME : null, text });
+    onToolCall({ name: validRequest && name === TOOL_NAME ? TOOL_NAME : null, text: validRequest ? text : null });
+    if (!validRequest) return { jsonrpc: "2.0", id: null,
+      error: { code: -32600, message: "Invalid tools/call request" } };
     if (name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
     if (!validArguments) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "arguments must contain only string text" } };
     return { jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }], isError: false } };
