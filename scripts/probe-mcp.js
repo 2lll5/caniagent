@@ -46,15 +46,30 @@ export function classifyMcpResult(execution, receipt = []) {
   return receipt.length === 1 && receipt[0]?.name === "caniagent_echo" && receipt[0]?.matched === true ? "pass" : "fail";
 }
 
+// Pin evidence to a verified file descriptor. A pathname may be replaced
+// between lstat and open; never read the substituted file or unbounded data.
+function readRegularEvidenceFile(filePath, maxBytes) {
+  const before = fs.lstatSync(filePath);
+  if (!before.isFile() || before.size > maxBytes) return null;
+  const flags = fs.constants.O_RDONLY | (process.platform === "win32" ? 0 : (fs.constants.O_NOFOLLOW ?? 0));
+  const fd = fs.openSync(filePath, flags);
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.size !== before.size
+      || opened.dev !== before.dev || opened.ino !== before.ino) return null;
+    const bytes = Buffer.alloc(opened.size);
+    if (fs.readSync(fd, bytes, 0, bytes.length, 0) !== bytes.length
+      || fs.fstatSync(fd).size !== opened.size) return null;
+    return bytes.toString("utf8");
+  } finally { fs.closeSync(fd); }
+}
+
 export function readMcpReceipt(receiptPath) {
   try {
     // No receipt file is missing evidence, not proof of zero tool calls.
     // The server creates an empty file when the MCP handshake completes.
-    const stat = fs.lstatSync(receiptPath);
-    // The fixture writes regular files only. Never follow an agent-created symlink
-    // or read unbounded/nonregular evidence (for example a FIFO).
-    if (!stat.isFile() || stat.size > 65536) return null;
-    const content = fs.readFileSync(receiptPath, "utf8");
+    const content = readRegularEvidenceFile(receiptPath, 65536);
+    if (content === null) return null;
     if (!content) return [];
     // Every server-written JSONL record ends with a newline. A missing terminator
     // can indicate an interrupted write, so do not treat it as complete evidence.
@@ -81,11 +96,8 @@ export function readMcpReceipt(receiptPath) {
 // actually completed the protocol initialize handshake.
 export function readMcpInitialization(initializedPath) {
   try {
-    const stat = fs.lstatSync(initializedPath);
-    // Read only the fixed-size marker emitted by this fixture. Oversized,
-    // symlinked, or nonregular evidence must not establish initialization.
-    if (!stat.isFile() || stat.size !== Buffer.byteLength("initialized\n")) return false;
-    return fs.readFileSync(initializedPath, "utf8") === "initialized\n";
+    // A substituted or nonregular file must not establish initialization.
+    return readRegularEvidenceFile(initializedPath, Buffer.byteLength("initialized\n")) === "initialized\n";
   } catch (error) { return error?.code === "ENOENT" ? false : null; }
 }
 

@@ -389,6 +389,35 @@ test("MCP evidence readers reject oversized, symlinked, and nonregular files", (
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("MCP evidence rejects pathname replacement between lstat and open", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-evidence-race-"));
+  const validReceipt = JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n";
+  try {
+    for (const [label, content, reader, rejected] of [
+      ["receipt", validReceipt, readMcpReceipt, null],
+      ["initialized", "initialized\n", readMcpInitialization, false]
+    ]) {
+      const file = path.join(temp, label);
+      fs.writeFileSync(file, content);
+      const originalLstat = fs.lstatSync;
+      let replaced = false;
+      fs.lstatSync = function (candidate, ...args) {
+        const stat = originalLstat.call(this, candidate, ...args);
+        if (candidate === file && !replaced) {
+          replaced = true;
+          fs.renameSync(file, file + ".original");
+          fs.writeFileSync(file, content);
+        }
+        return stat;
+      };
+      try {
+        assert.equal(reader(file), rejected, label + " must reject a different inode");
+        assert.equal(replaced, true, "test must exercise the pathname swap");
+      } finally { fs.lstatSync = originalLstat; }
+    }
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP evidence distinguishes absent handshake from a genuine zero-call result", () => {
   const success = { outcome: "success" };
   const valid = [{ name: TOOL_NAME, matched: true }];
