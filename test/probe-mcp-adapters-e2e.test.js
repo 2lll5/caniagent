@@ -14,7 +14,7 @@ test("MCP probe resolves every vendor fixture and classifies real stdio calls", 
   const probe = fileURLToPath(new URL("../scripts/probe-mcp.js", import.meta.url));
   const windows = process.platform === "win32";
   const adapters = [
-    ["codex", "codex", ["exec", "--ephemeral"]],
+    ["codex", "codex", ["exec", "--ephemeral", "--skip-git-repo-check"]],
     ["claude-code", "claude", ["-p"]],
     ["gemini-cli", "gemini", ["-p"]],
     ["opencode", "opencode", ["run"]]

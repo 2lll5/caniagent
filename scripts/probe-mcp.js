@@ -11,7 +11,7 @@ const SERVER_PATH = fileURLToPath(new URL("./mcp-echo-server.js", import.meta.ur
 export const MCP_MARKER = "CANIAGENT_MCP_ECHO_OK";
 
 export const MCP_PROBE_SPECS = {
-  codex: { args: (prompt) => ["exec", "--ephemeral", prompt] },
+  codex: { args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
   "claude-code": { args: (prompt) => ["-p", prompt] },
   "gemini-cli": { args: (prompt) => ["-p", prompt] },
   opencode: { args: (prompt) => ["run", prompt] }
