@@ -51,7 +51,11 @@ export function classifyMcpResult(execution, receipt = []) {
 function readRegularEvidenceFile(filePath, maxBytes) {
   const before = fs.lstatSync(filePath);
   if (!before.isFile() || before.size > maxBytes) return null;
-  const flags = fs.constants.O_RDONLY | (process.platform === "win32" ? 0 : (fs.constants.O_NOFOLLOW ?? 0));
+  // A regular pathname can be swapped for a FIFO after lstat. On POSIX,
+  // O_NONBLOCK prevents open from hanging before fstat can reject the FIFO.
+  // It does not change reads from regular files.
+  const flags = fs.constants.O_RDONLY | (process.platform === "win32" ? 0
+    : (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
   const fd = fs.openSync(filePath, flags);
   try {
     const opened = fs.fstatSync(fd);
