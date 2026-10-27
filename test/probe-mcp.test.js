@@ -48,8 +48,9 @@ test("MCP server records rejected and valid tool-call attempts without exposing 
       const initialize = JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize",
         params: { protocolVersion: "2025-06-18", capabilities: {},
           clientInfo: { name: "test", version: "1" } } });
+      const initialized = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
       const run = spawnSync(process.execPath, [serverPath], {
-        input: [initialize, ...requests].join("\n") + "\n", encoding: "utf8", timeout: 5000,
+        input: [initialize, initialized, ...requests].join("\n") + "\n", encoding: "utf8", timeout: 5000,
         env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
           CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
       });
@@ -98,17 +99,31 @@ test("MCP calls before initialize never become passing evidence", () => {
         CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
     });
     assert.equal(child.status, 0, child.stderr);
-    assert.equal(child.stdout.trim().split("\n").length, requests.length);
-    assert.equal(readMcpInitialization(initializedPath), true);
-    return readMcpReceipt(receiptPath);
+    assert.equal(child.stdout.trim().split("\n").length,
+      requests.filter((request) => request.method !== "notifications/initialized").length);
+    return { receipt: readMcpReceipt(receiptPath), initialized: readMcpInitialization(initializedPath) };
   };
   try {
-    const before = runSequence([call, initialize], "before");
-    assert.deepEqual(before, [{ name: TOOL_NAME, matched: false }]);
-    assert.equal(classifyMcpEvidence({ outcome: "success" }, before, true), "fail");
-    const after = runSequence([initialize, call], "after");
-    assert.deepEqual(after, [{ name: TOOL_NAME, matched: true }]);
-    assert.equal(classifyMcpEvidence({ outcome: "success" }, after, true), "pass");
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const before = runSequence([call, initialize, notification], "before");
+    assert.deepEqual(before.receipt, [{ name: TOOL_NAME, matched: false }]);
+    assert.equal(before.initialized, true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, before.receipt, true), "fail");
+    const after = runSequence([initialize, notification, call], "after");
+    assert.deepEqual(after.receipt, [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(after.initialized, true);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, after.receipt, true), "pass");
+    for (const [name, requests] of [
+      ["missing", [initialize, call]],
+      ["early", [notification, initialize, call]],
+      ["request-id", [initialize, { ...notification, id: 3 }, call]],
+      ["wrong-version", [initialize, { ...notification, jsonrpc: "1.0" }, call]]
+    ]) {
+      const attempt = runSequence(requests, name);
+      assert.deepEqual(attempt.receipt, [{ name: TOOL_NAME, matched: false }], name);
+      assert.equal(attempt.initialized, false, name);
+      assert.equal(classifyMcpEvidence({ outcome: "success" }, attempt.receipt, false), "inconclusive", name);
+    }
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
@@ -131,7 +146,8 @@ test("MCP rejects malformed tool-call envelopes without losing attempt evidence"
       { ...validCall, id: {} }
     ];
     const child = spawnSync(process.execPath, [serverPath], {
-      input: [initialize, ...invalidCalls, validCall].map((item) => JSON.stringify(item)).join("\n") + "\n",
+      input: [initialize, { jsonrpc: "2.0", method: "notifications/initialized" }, ...invalidCalls, validCall]
+        .map((item) => JSON.stringify(item)).join("\n") + "\n",
       encoding: "utf8", timeout: 5000,
       env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
         CANIAGENT_MCP_INITIALIZED_PATH: initializedPath,
@@ -206,8 +222,9 @@ test("MCP server records initialization only after a protocol handshake", () => 
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-initialize-"));
   const markerPath = path.join(temp, "initialized");
   const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
-  const run = (request) => spawnSync(process.execPath, [serverPath], {
-    input: JSON.stringify(request) + "\n", encoding: "utf8", timeout: 5000,
+  const run = (requests) => spawnSync(process.execPath, [serverPath], {
+    input: (Array.isArray(requests) ? requests : [requests]).map(JSON.stringify).join("\n") + "\n",
+    encoding: "utf8", timeout: 5000,
     env: { ...process.env, CANIAGENT_MCP_INITIALIZED_PATH: markerPath }
   });
   try {
@@ -232,6 +249,19 @@ test("MCP server records initialization only after a protocol handshake", () => 
       params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } } });
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(JSON.parse(initialized.stdout.trim()).result.serverInfo.name, "caniagent-echo");
+    assert.equal(readMcpInitialization(markerPath), false, "initialize response alone is insufficient");
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    for (const invalidSequence of [
+      [notification, { jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, id: 3 }],
+      [{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, { ...notification, jsonrpc: "1.0" }]
+    ]) {
+      const rejected = run(invalidSequence);
+      assert.equal(rejected.status, 0, rejected.stderr);
+      assert.equal(readMcpInitialization(markerPath), false, "invalid notification must not create evidence");
+    }
+    const complete = run([{ jsonrpc: "2.0", id: 2, method: "initialize", params: validParams }, notification]);
+    assert.equal(complete.status, 0, complete.stderr);
     assert.equal(readMcpInitialization(markerPath), true);
     fs.writeFileSync(markerPath, "corrupt");
     assert.equal(readMcpInitialization(markerPath), false);

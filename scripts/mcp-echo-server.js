@@ -72,6 +72,7 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
 }
 
 function main() {
+  let initializeResponded = false;
   let initialized = false;
   const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   input.on("line", (line) => {
@@ -87,6 +88,13 @@ function main() {
       // A missing tool-call receipt only proves zero calls after an actual MCP handshake.
       // If initialization never occurred, the probe must remain inconclusive.
       if (message?.method === "initialize" && response?.result?.capabilities?.tools) {
+        initializeResponded = true;
+      }
+      // A valid initialize response alone does not complete the MCP handshake.
+      // The client must also send a valid notifications/initialized notification.
+      if (message?.method === "notifications/initialized"
+        && message.jsonrpc === "2.0" && message.id === undefined
+        && initializeResponded && !initialized) {
         initialized = true;
         if (process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
           fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });
