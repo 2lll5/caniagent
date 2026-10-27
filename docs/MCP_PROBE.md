@@ -19,6 +19,8 @@ Malformed JSON alone produces JSON-RPC `-32700` and the server continues process
 
 The stdio server returns JSON-RPC `-32600` for valid JSON that is not a request object (such as `null` or arrays), and for malformed `tools/list` request envelopes. These messages do not become tool-call receipts; a subsequent valid request is still processed.
 
+The fixture implements the legacy `2025-06-18` MCP handshake. Its `initialize` response always advertises that supported revision rather than echoing an arbitrary client-supplied version; a client that cannot negotiate it should disconnect, leaving the probe `inconclusive`. It does **not** implement the modern `2026-07-28` stateless `server/discover` protocol, so modern-only clients cannot be certified by this probe. This is a probe limitation, not a compatibility claim. See the [legacy lifecycle](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle) and [modern versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning) specifications.
+
 ## Isolation and credentials
 
 The MCP server itself requires no network access, API key, package install, or external service. Agent execution may still require the provider's normal authentication and may consume provider quota. The probe redirects `HOME`, `USERPROFILE`, and XDG config/data/state paths to temporary directories. Output passes through the shared probe redactor before it is persisted.

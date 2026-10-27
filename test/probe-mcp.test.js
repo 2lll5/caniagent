@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { handleMcpMessage, TOOL_NAME } from "../scripts/mcp-echo-server.js";
+import { handleMcpMessage, TOOL_NAME, MCP_PROTOCOL_VERSION } from "../scripts/mcp-echo-server.js";
 import { MCP_MARKER, createMcpFixture, classifyMcpResult, classifyMcpEvidence, readMcpReceipt, readMcpInitialization } from "../scripts/probe-mcp.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
@@ -17,6 +17,21 @@ test("MCP echo server exposes and calls deterministic tool", () => {
   const extra = handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/call",
     params: { name: TOOL_NAME, arguments: { text: MCP_MARKER, extra: "unexpected" } } });
   assert.equal(extra.error.code, -32602, "additionalProperties: false must be enforced");
+});
+
+test("MCP initialize negotiates the server-supported legacy protocol revision", () => {
+  const base = { jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "test", version: "1" }
+  } };
+  const supported = handleMcpMessage(base);
+  assert.equal(supported.result.protocolVersion, MCP_PROTOCOL_VERSION);
+  const unknown = handleMcpMessage({
+    ...base, params: { ...base.params, protocolVersion: "2099-01-01" }
+  });
+  assert.equal(unknown.result.protocolVersion, MCP_PROTOCOL_VERSION,
+    "must not echo an unsupported protocol version");
+  assert.notEqual(unknown.result.protocolVersion, "2099-01-01");
 });
 
 test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests", () => {

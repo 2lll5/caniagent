@@ -4,6 +4,8 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 export const TOOL_NAME = "caniagent_echo";
+// This fixture implements the 2025-06-18 legacy MCP handshake, not arbitrary revisions.
+export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
 export function handleMcpMessage(message, onToolCall = () => {}) {
   // JSON-RPC requires a request object; valid JSON primitives and arrays are not requests.
@@ -27,7 +29,8 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
       jsonrpc: "2.0",
       id: message.id,
       result: {
-        protocolVersion: params.protocolVersion,
+        // Legacy MCP version negotiation must advertise a revision this server actually supports.
+        protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: { tools: {} },
         serverInfo: { name: "caniagent-echo", version: "1.0.0" }
       }
