@@ -58,8 +58,14 @@ function readRegularEvidenceFile(filePath, maxBytes) {
     if (!opened.isFile() || opened.size !== before.size
       || opened.dev !== before.dev || opened.ino !== before.ino) return null;
     const bytes = Buffer.alloc(opened.size);
-    if (fs.readSync(fd, bytes, 0, bytes.length, 0) !== bytes.length
-      || fs.fstatSync(fd).size !== opened.size) return null;
+    // A regular file can return a short read before EOF. Read the verified size.
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+      if (count <= 0) return null;
+      offset += count;
+    }
+    if (fs.fstatSync(fd).size !== opened.size) return null;
     return bytes.toString("utf8");
   } finally { fs.closeSync(fd); }
 }

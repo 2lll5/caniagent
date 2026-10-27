@@ -389,6 +389,35 @@ test("MCP evidence readers reject oversized, symlinked, and nonregular files", (
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("MCP evidence readers tolerate short reads but reject premature EOF", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-short-read-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const originalReadSync = fs.readSync;
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    let shortReads = 0;
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      shortReads++;
+      return originalReadSync.call(this, fd, buffer, offset, Math.min(length, 2), position);
+    };
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.ok(shortReads > 2, "both readers must consume multiple chunks");
+
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      if (position >= 2) return 0;
+      return originalReadSync.call(this, fd, buffer, offset, Math.min(length, 2), position);
+    };
+    assert.equal(readMcpReceipt(receiptPath), null, "truncated receipt remains inconclusive");
+    assert.equal(readMcpInitialization(initializedPath), false, "partial marker cannot prove handshake");
+  } finally {
+    fs.readSync = originalReadSync;
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("MCP evidence rejects pathname replacement between lstat and open", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-evidence-race-"));
   const validReceipt = JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n";
