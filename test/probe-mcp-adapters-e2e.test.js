@@ -39,6 +39,7 @@ if (process.env.CODEX_HOME !== path.join(home, ".codex")
     || process.env.CLAUDE_CONFIG_DIR !== path.join(home, ".claude")) process.exit(5);
 let server;
 if (agent === "codex") {
+  if (fs.existsSync(path.join(process.cwd(), ".git"))) process.exit(10);
   const toml = fs.readFileSync(path.join(process.env.CODEX_HOME, "config.toml"), "utf8");
   const command = toml.match(/^command = (.+)$/m);
   const argumentsLine = toml.match(/^args = (.+)$/m);
@@ -48,8 +49,10 @@ if (agent === "codex") {
   server = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".mcp.json"), "utf8"))
     .mcpServers.caniagent_echo;
 } else if (agent === "gemini-cli") {
-  server = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".gemini", "settings.json"), "utf8"))
+  const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), ".gemini", "settings.json"), "utf8"))
     .mcpServers.caniagent_echo;
+  if (config.trust !== true) process.exit(11);
+  server = config;
 } else {
   const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "opencode.json"), "utf8"))
     .mcp.caniagent_echo;
@@ -60,11 +63,12 @@ const initialize = { jsonrpc: "2.0", id: 1, method: "initialize", params: {
   protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "fake-cli", version: "1" }
 } };
 const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+const list = { jsonrpc: "2.0", id: 3, method: "tools/list" };
 const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: {
   name: "caniagent_echo", arguments: { text: process.env.CANIAGENT_MCP_EXPECTED_TEXT }
 } };
 const requests = process.env.MOCK_MCP_MODE === "zero-call"
-  ? [initialize, notification] : [initialize, notification, call];
+  ? [initialize, notification] : [initialize, notification, list, call];
 const child = spawnSync(server.command, server.args, {
   input: requests.map(JSON.stringify).join("\\n") + "\\n",
   encoding: "utf8", env: process.env, timeout: 5000
@@ -75,7 +79,8 @@ if (child.error || child.status !== 0) {
 }
 if (process.env.MOCK_MCP_MODE !== "zero-call") {
   const replies = child.stdout.trim().split("\\n").map(JSON.parse);
-  if (replies.at(-1)?.result?.content?.[0]?.text !== process.env.CANIAGENT_MCP_EXPECTED_TEXT)
+  if (replies.at(-2)?.result?.tools?.[0]?.name !== "caniagent_echo"
+      || replies.at(-1)?.result?.content?.[0]?.text !== process.env.CANIAGENT_MCP_EXPECTED_TEXT)
     process.exit(9);
 }
 console.log("fake " + agent + " completed");
