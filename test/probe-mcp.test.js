@@ -418,6 +418,38 @@ test("MCP evidence readers tolerate short reads but reject premature EOF", () =>
   }
 });
 
+test("MCP evidence rejects same-inode metadata changes before descriptor reading", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-preopen-race-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const originalFstat = fs.fstatSync;
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    for (const [label, file, reader, expected, field] of [
+      ["receipt mtime", receiptPath, readMcpReceipt, null, "mtimeMs"],
+      ["receipt ctime", receiptPath, readMcpReceipt, null, "ctimeMs"],
+      ["initialization mtime", initializedPath, readMcpInitialization, false, "mtimeMs"],
+      ["initialization ctime", initializedPath, readMcpInitialization, false, "ctimeMs"]
+    ]) {
+      let calls = 0;
+      fs.fstatSync = function (fd, ...args) {
+        const stat = originalFstat.call(this, fd, ...args);
+        calls++;
+        // Preserve Stats methods such as isFile() while simulating an edit
+        // after lstat but before the first fstat on the opened descriptor.
+        return Object.assign(Object.create(Object.getPrototypeOf(stat)), stat,
+          { [field]: stat[field] + 1000 });
+      };
+      assert.equal(reader(file), expected, label + " must reject pre-open metadata drift");
+      assert.equal(calls, 1, label + " must reject before reading any bytes");
+    }
+  } finally {
+    fs.fstatSync = originalFstat;
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("MCP evidence rejects same-size metadata changes during descriptor reads", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-metadata-race-"));
   const receiptPath = path.join(temp, "receipt.jsonl");

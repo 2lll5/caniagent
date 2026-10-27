@@ -56,7 +56,9 @@ function readRegularEvidenceFile(filePath, maxBytes) {
   try {
     const opened = fs.fstatSync(fd);
     if (!opened.isFile() || opened.size !== before.size
-      || opened.dev !== before.dev || opened.ino !== before.ino) return null;
+      || opened.dev !== before.dev || opened.ino !== before.ino
+      // Catch detectable in-place edits between pathname inspection and open.
+      || opened.mtimeMs !== before.mtimeMs || opened.ctimeMs !== before.ctimeMs) return null;
     const bytes = Buffer.alloc(opened.size);
     // A regular file can return a short read before EOF. Read the verified size.
     let offset = 0;
