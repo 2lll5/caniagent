@@ -87,3 +87,111 @@ console.log(mode === "echo-only" ? process.env.CANIAGENT_MCP_EXPECTED_TEXT : "fa
     fs.rmSync(temp, { recursive: true, force: true });
   }
 });
+
+
+// A local fake agent exercises the entire probe runner, including per-vendor
+// config discovery, the real stdio server, and receipt-based classification.
+// It is NOT evidence of compatibility with the actual vendor CLIs.
+const fakeAgentSource = String.raw`
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+const [agent, ...argv] = process.argv.slice(2);
+if (argv.length === 1 && argv[0] === "--version") {
+  console.log("caniagent-test-fake 1.0");
+  process.exit(0);
+}
+const prefixes = {
+  codex: ["exec", "--ephemeral", "--skip-git-repo-check"],
+  "claude-code": ["-p"],
+  "gemini-cli": ["-p"],
+  opencode: ["run"]
+};
+assert.deepEqual(argv.slice(0, -1), prefixes[agent]);
+assert.match(argv.at(-1), /Call the caniagent_echo MCP tool exactly once/);
+
+let command;
+let args;
+if (agent === "codex") {
+  assert.equal(fs.existsSync(path.join(process.cwd(), ".git")), false);
+  const lines = fs.readFileSync(path.join(process.env.CODEX_HOME, "config.toml"), "utf8").split("\n");
+  command = JSON.parse(lines.find((line) => line.startsWith("command = ")).slice(10));
+  args = JSON.parse(lines.find((line) => line.startsWith("args = ")).slice(7));
+} else if (agent === "claude-code") {
+  const config = JSON.parse(fs.readFileSync(".mcp.json", "utf8")).mcpServers.caniagent_echo;
+  ({ command, args } = config);
+} else if (agent === "gemini-cli") {
+  const config = JSON.parse(fs.readFileSync(path.join(".gemini", "settings.json"), "utf8")).mcpServers.caniagent_echo;
+  assert.equal(config.trust, true);
+  ({ command, args } = config);
+} else if (agent === "opencode") {
+  const config = JSON.parse(fs.readFileSync("opencode.json", "utf8")).mcp.caniagent_echo;
+  assert.equal(config.type, "local");
+  [command, ...args] = config.command;
+} else {
+  throw new Error("Unknown fake agent: " + agent);
+}
+
+const marker = "CANIAGENT_MCP_ECHO_OK";
+const messages = [
+  { jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "fake-agent", version: "1" }
+  } },
+  { jsonrpc: "2.0", method: "notifications/initialized" },
+  { jsonrpc: "2.0", id: 2, method: "tools/list" },
+  { jsonrpc: "2.0", id: 3, method: "tools/call", params: {
+    name: "caniagent_echo", arguments: { text: marker }
+  } }
+];
+const server = spawnSync(command, args, {
+  input: messages.map(JSON.stringify).join("\n") + "\n",
+  encoding: "utf8", env: process.env, timeout: 10000
+});
+assert.equal(server.status, 0, server.stderr || server.error?.message);
+const responses.length, 3);
+assert.equal(responses[0].result.protocolVersion, "2025-06-18");
+assert.equal(responses[1].result.tools[0].name, "caniagent_echo");
+assert.equal(responses[2].result.content[0].text, marker);
+console.log("fake MCP invocation completed");
+`;
+
+test("MCP probe end-to-end: four fake CLIs use isolated configs and real stdio receipts", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-e2e-"));
+  try {
+    const bin = path.join(temp, "fake-bin");
+    fs.mkdirSync(bin);
+    const fakeAgent = path.join(temp, "fake-agent.mjs");
+    fs.writeFileSync(fakeAgent, fakeAgentSource);
+    for (const [name, agent] of Object.entries({
+      codex: "codex", claude: "claude-code", gemini: "gemini-cli", opencode: "opencode"
+    })) {
+      if (process.platform === "win32") {
+        fs.writeFileSync(path.join(bin, `${name}.cmd`),
+          `@echo off\r\n"${process.execPath}" "${fakeAgent}" "${agent}" %*\r\n`);
+      } else {
+        const executable = path.join(bin, name);
+        fs.writeFileSync(executable,
+          `#!/bin/sh\nexec "${process.execPath}" "${fakeAgent}" "${agent}" "$@"\n`, { mode: 0o755 });
+      }
+    }
+    const output = path.join(temp, "probe-output.json");
+    const result = spawnSync(process.execPath, [probePath, `--output=${output}`], {
+      env: { ...process.env, PATH: bin + path.delimiter + (process.env.PATH || "") },
+      encoding: "utf8", timeout: 30000
+    });
+    assert.equal(result.status, 0, result.stderr || result.error?.message);
+    const evidence = JSON.parse(fs.readFileSync(output, "utf8"));
+    assert.deepEqual(evidence.results.map(({ agent, verdict, serverInitialized, toolCallsObserved }) =>
+      ({ agent, verdict, serverInitialized, toolCallsObserved })), [
+      "codex", "claude-code", "gemini-cli", "opencode"
+    ].map((agent) => ({ agent, verdict: "pass", serverInitialized: true, toolCallsObserved: 1 })));
+    for (const entry of evidence.results) {
+      assert.equal(entry.version.outcome, "success", entry.agent);
+      assert.equal(entry.execution.outcome, "success", entry.agent);
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
