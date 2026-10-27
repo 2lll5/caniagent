@@ -36,6 +36,16 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
       }
     };
   }
+  if (message.method === "ping") {
+    // Legacy MCP clients may ping the server to check liveness. A ping does
+    // not establish initialization or count as a tool-call attempt.
+    const validRequest = message.jsonrpc === "2.0"
+      && (typeof message.id === "string" || (typeof message.id === "number" && Number.isFinite(message.id)))
+      && (message.params == null || (typeof message.params === "object" && !Array.isArray(message.params)));
+    if (!validRequest) return { jsonrpc: "2.0", id: null,
+      error: { code: -32600, message: "Invalid ping request" } };
+    return { jsonrpc: "2.0", id: message.id, result: {} };
+  }
   if (message.method === "tools/list") {
     const validRequest = message.jsonrpc === "2.0"
       && (typeof message.id === "string" || (typeof message.id === "number" && Number.isFinite(message.id)));

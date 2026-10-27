@@ -19,6 +19,49 @@ test("MCP echo server exposes and calls deterministic tool", () => {
   assert.equal(extra.error.code, -32602, "additionalProperties: false must be enforced");
 });
 
+test("legacy MCP ping responds without forging initialization or tool evidence", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-ping-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const ping = (id, params) => ({ jsonrpc: "2.0", id, method: "ping", ...(params === undefined ? {} : { params }) });
+  const initialize = { jsonrpc: "2.0", id: 3, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "ping-test", version: "1" }
+  } };
+  try {
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [
+        ping(1), ping(2, {}), { jsonrpc: "2.0", method: "ping" },
+        initialize, ping(4, null),
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+        ping(5, { _meta: {} })
+      ].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    const responses = child.stdout.trim().split("\n").map(JSON.parse);
+    assert.deepEqual(responses, [
+      { jsonrpc: "2.0", id: 1, result: {} },
+      { jsonrpc: "2.0", id: 2, result: {} },
+      { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid ping request" } },
+      { jsonrpc: "2.0", id: 3, result: {
+        protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} },
+        serverInfo: { name: "caniagent-echo", version: "1.0.0" }
+      } },
+      { jsonrpc: "2.0", id: 4, result: {} },
+      { jsonrpc: "2.0", id: 5, result: {} }
+    ]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "ping must never create a tool receipt");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true), "fail");
+    assert.equal(handleMcpMessage(ping(9, [])).error.code, -32600);
+    assert.equal(handleMcpMessage(ping(9, 7)).error.code, -32600);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP initialize negotiates the server-supported legacy protocol revision", () => {
   const base = { jsonrpc: "2.0", id: 1, method: "initialize", params: {
     protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
