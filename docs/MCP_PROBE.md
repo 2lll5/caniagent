@@ -17,7 +17,7 @@ The server creates an empty receipt file at successful handshake completion, bef
 
 Malformed JSON alone produces JSON-RPC `-32700` and the server continues processing later requests. Receipt write failures are infrastructure errors and must not be disguised as JSON parse errors; the server exits unsuccessfully instead of fabricating a protocol response.
 
-The stdio server returns JSON-RPC `-32600` for valid JSON that is not a request object (such as `null` or arrays), and for malformed `tools/list` request envelopes. These messages do not become tool-call receipts; a subsequent valid request is still processed.
+The stdio server returns JSON-RPC `-32600` for valid JSON that is not a request object (such as `null` or arrays), and for malformed `tools/list` request envelopes. A structurally valid `tools/list` is served only after the legacy `notifications/initialized` handshake; requests before that point receive `-32000` rather than an advertised tool list. These messages do not become tool-call receipts; a subsequent valid post-handshake request is still processed.
 
 The fixture implements the legacy `2025-06-18` MCP handshake. Its `initialize` response always advertises that supported revision rather than echoing an arbitrary client-supplied version; a client that cannot negotiate it should disconnect, leaving the probe `inconclusive`. It does **not** implement the modern `2026-07-28` stateless `server/discover` protocol, so modern-only clients cannot be certified by this probe. This is a probe limitation, not a compatibility claim. See the [legacy lifecycle](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle) and [modern versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning) specifications.
 

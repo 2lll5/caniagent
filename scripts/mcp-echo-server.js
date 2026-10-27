@@ -100,6 +100,12 @@ function main() {
         name, matched: initialized && name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
       }) + "\n", { mode: 0o600 });
     });
+    // Legacy MCP tool discovery is also a post-initialization request.
+    // Do not serve tools/list after initialize alone, before notifications/initialized.
+    if (message?.method === "tools/list" && !initialized && response?.result) {
+      response = { jsonrpc: "2.0", id: message.id,
+        error: { code: -32000, message: "Server not initialized" } };
+    }
     // Keep the rejected attempt in the receipt, but never return a successful tool
     // result before the client completes the MCP initialization notification.
     if (message?.method === "tools/call" && !initialized && response?.result) {

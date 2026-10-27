@@ -34,6 +34,27 @@ test("MCP initialize negotiates the server-supported legacy protocol revision", 
   assert.notEqual(unknown.result.protocolVersion, "2099-01-01");
 });
 
+test("MCP stdio rejects tool discovery until the initialized notification", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const list = (id) => ({ jsonrpc: "2.0", id, method: "tools/list" });
+  const initialize = { jsonrpc: "2.0", id: 2, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {},
+    clientInfo: { name: "test", version: "1" }
+  } };
+  const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+  const child = spawnSync(process.execPath, [serverPath], {
+    input: [list(1), initialize, list(3), notification, list(4)].map(JSON.stringify).join("\n") + "\n",
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 0, child.stderr);
+  const responses = child.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(responses.length, 4, "notification must not produce a response");
+  assert.equal(responses[0].error.code, -32000, "discovery before initialize is rejected");
+  assert.equal(responses[1].result.protocolVersion, MCP_PROTOCOL_VERSION);
+  assert.equal(responses[2].error.code, -32000, "initialize response alone is insufficient");
+  assert.equal(responses[3].result.tools[0].name, TOOL_NAME, "discovery succeeds after initialized");
+});
+
 test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests", () => {
   const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
   const invalidMessages = [
@@ -43,29 +64,36 @@ test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests
     JSON.stringify({ jsonrpc: "2.0", id: null, method: "tools/list" })
   ];
   const validList = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const initialize = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "test", version: "1" }
+  } });
+  const initialized = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
   const child = spawnSync(process.execPath, [serverPath], {
-    input: [...invalidMessages, validList].join("\n") + "\n",
+    input: [...invalidMessages, initialize, initialized, validList].join("\n") + "\n",
     encoding: "utf8", timeout: 5000
   });
   assert.equal(child.status, 0, child.stderr);
   const responses = child.stdout.trim().split("\n").map(JSON.parse);
-  assert.equal(responses.length, invalidMessages.length + 1);
-  for (const response of responses.slice(0, -1)) {
+  assert.equal(responses.length, invalidMessages.length + 2);
+  for (const response of responses.slice(0, invalidMessages.length)) {
     assert.equal(response.error?.code, -32600, "invalid request must not be silently ignored or called a parse error");
   }
-  assert.equal(responses.at(-1).result.tools[0].name, TOOL_NAME, "valid request must still work");
+  assert.equal(responses.at(-2).result.protocolVersion, MCP_PROTOCOL_VERSION);
+  assert.equal(responses.at(-1).result.tools[0].name, TOOL_NAME, "valid post-handshake request must work");
 });
 
 test("MCP stdio reports receipt write errors without disguising them as JSON parse errors", () => {
   const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
-  const validList = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const validInitialize = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize", params: {
+    protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "test", version: "1" }
+  } });
   const recovery = spawnSync(process.execPath, [serverPath], {
-    input: "{invalid-json\n" + validList + "\n", encoding: "utf8", timeout: 5000
+    input: "{invalid-json\n" + validInitialize + "\n", encoding: "utf8", timeout: 5000
   });
   assert.equal(recovery.status, 0, recovery.stderr);
-  const [parseError, listed] = recovery.stdout.trim().split("\n").map(JSON.parse);
+  const [parseError, initialized] = recovery.stdout.trim().split("\n").map(JSON.parse);
   assert.equal(parseError.error.code, -32700, "malformed JSON must remain a parse error");
-  assert.equal(listed.result.tools[0].name, TOOL_NAME, "server must recover after malformed JSON");
+  assert.equal(initialized.result.protocolVersion, MCP_PROTOCOL_VERSION, "server must recover after malformed JSON");
 
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-receipt-io-"));
   try {
@@ -334,6 +362,7 @@ test("MCP server records initialization only after a protocol handshake", () => 
     assert.equal(readMcpInitialization(markerPath), false);
     const list = run({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     assert.equal(list.status, 0, list.stderr);
+    assert.equal(JSON.parse(list.stdout.trim()).error.code, -32000, "tools/list requires initialization");
     assert.equal(readMcpInitialization(markerPath), false, "listing is not initialization");
     const validParams = { protocolVersion: "2025-06-18", capabilities: {},
       clientInfo: { name: "test", version: "1" } };
