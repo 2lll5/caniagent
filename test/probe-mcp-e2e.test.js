@@ -7,14 +7,16 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 // This is a local fake CLI integration test, not provider-backed compatibility evidence.
-test("MCP probe CLI classifies server-side calls rather than echoed prompts", { skip: process.platform === "win32" }, () => {
+test("MCP probe CLI classifies server-side calls rather than echoed prompts", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-e2e-"));
   const bin = path.join(temp, "bin");
   const probe = fileURLToPath(new URL("../scripts/probe-mcp.js", import.meta.url));
   try {
     fs.mkdirSync(bin);
-    const fakeClaude = path.join(bin, "claude");
-    fs.writeFileSync(fakeClaude, `#!${process.execPath}
+    const windows = process.platform === "win32";
+    const fakeClaude = path.join(bin, windows ? "claude.cmd" : "claude");
+    const fakeScript = windows ? path.join(temp, "fake-claude.cjs") : fakeClaude;
+    fs.writeFileSync(fakeScript, `#!${process.execPath}
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -51,7 +53,12 @@ if (mode === "valid-call") {
 // An echoed marker alone must never establish a successful MCP tool call.
 console.log(mode === "echo-only" ? process.env.CANIAGENT_MCP_EXPECTED_TEXT : "fake CLI finished");
 `);
-    fs.chmodSync(fakeClaude, 0o755);
+    if (windows) {
+      // Windows resolves .cmd shims through PATHEXT; avoid requiring a POSIX shebang.
+      fs.writeFileSync(fakeClaude, `@echo off\r\n"${process.execPath}" "${fakeScript}" %*\r\n`);
+    } else {
+      fs.chmodSync(fakeClaude, 0o755);
+    }
     for (const [mode, verdict, initialized, count] of [
       ["valid-call", "pass", true, 1],
       ["zero-call", "fail", true, 0],
