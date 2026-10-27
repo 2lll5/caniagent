@@ -88,14 +88,14 @@ test("MCP calls before initialize never become passing evidence", () => {
     const receiptPath = path.join(temp, `receipt-${suffix}.jsonl`);
     const initializedPath = path.join(temp, `initialized-${suffix}`);
     const child = spawnSync(process.execPath, [serverPath], {
-      input: requests.map((request) => JSON.stringify(request)).join("\\n") + "\\n",
+      input: requests.map((request) => JSON.stringify(request)).join("\n") + "\n",
       encoding: "utf8", timeout: 5000,
       env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
         CANIAGENT_MCP_INITIALIZED_PATH: initializedPath,
         CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
     });
     assert.equal(child.status, 0, child.stderr);
-    assert.equal(child.stdout.trim().split("\\n").length, requests.length);
+    assert.equal(child.stdout.trim().split("\n").length, requests.length);
     assert.equal(readMcpInitialization(initializedPath), true);
     return readMcpReceipt(receiptPath);
   };
