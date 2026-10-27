@@ -45,13 +45,16 @@ test("MCP server records rejected and valid tool-call attempts without exposing 
     });
     const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
     const runRequests = (requests, receiptPath) => {
+      const initialize = JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {},
+          clientInfo: { name: "test", version: "1" } } });
       const run = spawnSync(process.execPath, [serverPath], {
-        input: requests.join("\n") + "\n", encoding: "utf8", timeout: 5000,
+        input: [initialize, ...requests].join("\n") + "\n", encoding: "utf8", timeout: 5000,
         env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
           CANIAGENT_MCP_EXPECTED_TEXT: MCP_MARKER }
       });
       assert.equal(run.status, 0, run.stderr);
-      assert.equal(run.stdout.trim().split("\n").length, requests.length);
+      assert.equal(run.stdout.trim().split("\n").length, requests.length + 1);
       return fs.readFileSync(receiptPath, "utf8").trim().split("\n").map(JSON.parse);
     };
     const attempts = runRequests([
