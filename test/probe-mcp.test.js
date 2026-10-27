@@ -19,6 +19,28 @@ test("MCP echo server exposes and calls deterministic tool", () => {
   assert.equal(extra.error.code, -32602, "additionalProperties: false must be enforced");
 });
 
+test("MCP stdio rejects invalid JSON-RPC roots and malformed tools/list requests", () => {
+  const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+  const invalidMessages = [
+    "null", "[]", "42", "true", '"unexpected"',
+    JSON.stringify({ jsonrpc: "1.0", id: 1, method: "tools/list" }),
+    JSON.stringify({ jsonrpc: "2.0", method: "tools/list" }),
+    JSON.stringify({ jsonrpc: "2.0", id: null, method: "tools/list" })
+  ];
+  const validList = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  const child = spawnSync(process.execPath, [serverPath], {
+    input: [...invalidMessages, validList].join("\n") + "\n",
+    encoding: "utf8", timeout: 5000
+  });
+  assert.equal(child.status, 0, child.stderr);
+  const responses = child.stdout.trim().split("\n").map(JSON.parse);
+  assert.equal(responses.length, invalidMessages.length + 1);
+  for (const response of responses.slice(0, -1)) {
+    assert.equal(response.error?.code, -32600, "invalid request must not be silently ignored or called a parse error");
+  }
+  assert.equal(responses.at(-1).result.tools[0].name, TOOL_NAME, "valid request must still work");
+});
+
 test("MCP probe classifies pass, fail, skip, and inconclusive", () => {
   assert.equal(classifyMcpResult({ outcome: "success", stdout: MCP_MARKER, stderr: "" }, [{ name: "caniagent_echo", matched: true }]), "pass");
   assert.equal(classifyMcpResult({ outcome: "success", stdout: "no marker", stderr: "" }), "fail");

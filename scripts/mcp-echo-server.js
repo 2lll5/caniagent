@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 export const TOOL_NAME = "caniagent_echo";
 
 export function handleMcpMessage(message, onToolCall = () => {}) {
+  // JSON-RPC requires a request object; valid JSON primitives and arrays are not requests.
+  if (message === null || typeof message !== "object" || Array.isArray(message)) {
+    return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } };
+  }
   if (message.method === "initialize") {
     const params = message.params;
     // Only a valid JSON-RPC MCP initialize request can establish handshake evidence.
@@ -30,6 +34,10 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
     };
   }
   if (message.method === "tools/list") {
+    const validRequest = message.jsonrpc === "2.0"
+      && (typeof message.id === "string" || (typeof message.id === "number" && Number.isFinite(message.id)));
+    if (!validRequest) return { jsonrpc: "2.0", id: null,
+      error: { code: -32600, message: "Invalid tools/list request" } };
     return {
       jsonrpc: "2.0",
       id: message.id,
