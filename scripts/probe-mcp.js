@@ -56,6 +56,9 @@ export function readMcpReceipt(receiptPath) {
     if (!stat.isFile() || stat.size > 65536) return null;
     const content = fs.readFileSync(receiptPath, "utf8");
     if (!content) return [];
+    // Every server-written JSONL record ends with a newline. A missing terminator
+    // can indicate an interrupted write, so do not treat it as complete evidence.
+    if (!content.endsWith("\n")) return null;
     const lines = content.split("\n");
     if (lines.at(-1) === "") lines.pop();
     if (lines.some((line) => !line.trim())) return null;

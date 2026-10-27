@@ -339,6 +339,8 @@ test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
       mixedRecords: valid + "\n" + JSON.stringify({ name: TOOL_NAME, matched: 1 }),
       blankLine: valid + "\n\n",
       invalidJson: "{invalid",
+      unterminatedRecord: valid,
+      unterminatedLastRecord: valid + "\n" + valid,
       oversized: "x".repeat(65537)
     })) {
       fs.writeFileSync(receiptPath, content);
