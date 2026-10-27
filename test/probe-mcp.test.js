@@ -101,16 +101,19 @@ test("MCP calls before initialize never become passing evidence", () => {
     assert.equal(child.status, 0, child.stderr);
     assert.equal(child.stdout.trim().split("\n").length,
       requests.filter((request) => request.method !== "notifications/initialized" || request.id !== undefined).length);
-    return { receipt: readMcpReceipt(receiptPath), initialized: readMcpInitialization(initializedPath) };
+    return { receipt: readMcpReceipt(receiptPath), initialized: readMcpInitialization(initializedPath),
+      responses: child.stdout.trim().split("\n").map(JSON.parse) };
   };
   try {
     const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
     const before = runSequence([call, initialize, notification], "before");
     assert.deepEqual(before.receipt, [{ name: TOOL_NAME, matched: false }]);
+    assert.equal(before.responses[0].error.code, -32000, "pre-handshake call must be rejected");
     assert.equal(before.initialized, true);
     assert.equal(classifyMcpEvidence({ outcome: "success" }, before.receipt, true), "fail");
     const after = runSequence([initialize, notification, call], "after");
     assert.deepEqual(after.receipt, [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(after.responses.at(-1).result.content[0].text, MCP_MARKER);
     assert.equal(after.initialized, true);
     assert.equal(classifyMcpEvidence({ outcome: "success" }, after.receipt, true), "pass");
     for (const [name, requests] of [
@@ -121,6 +124,7 @@ test("MCP calls before initialize never become passing evidence", () => {
     ]) {
       const attempt = runSequence(requests, name);
       assert.deepEqual(attempt.receipt, [{ name: TOOL_NAME, matched: false }], name);
+      assert.equal(attempt.responses.at(-1).error.code, -32000, name);
       assert.equal(attempt.initialized, false, name);
       assert.equal(classifyMcpEvidence({ outcome: "success" }, attempt.receipt, false), "inconclusive", name);
     }

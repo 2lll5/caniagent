@@ -79,12 +79,18 @@ function main() {
     if (!line.trim()) return;
     try {
       const message = JSON.parse(line);
-      const response = handleMcpMessage(message, ({ name, text }) => {
+      let response = handleMcpMessage(message, ({ name, text }) => {
         const receiptPath = process.env.CANIAGENT_MCP_RECEIPT_PATH;
         if (receiptPath) fs.appendFileSync(receiptPath, JSON.stringify({
           name, matched: initialized && name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
         }) + "\n", { mode: 0o600 });
       });
+      // Keep the rejected attempt in the receipt, but never return a successful tool
+      // result before the client completes the MCP initialization notification.
+      if (message?.method === "tools/call" && !initialized && response?.result) {
+        response = { jsonrpc: "2.0", id: message.id,
+          error: { code: -32000, message: "Server not initialized" } };
+      }
       // A missing tool-call receipt only proves zero calls after an actual MCP handshake.
       // If initialization never occurred, the probe must remain inconclusive.
       if (message?.method === "initialize" && response?.result?.capabilities?.tools) {
