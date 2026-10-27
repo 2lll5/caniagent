@@ -55,6 +55,7 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
       && Object.keys(args).length === 1 && typeof args.text === "string";
     const text = validArguments ? args.text : null;
     // Count rejected attempts too: a bad call followed by a valid one is not "exactly once".
+    // The process records calls made before initialize as unmatched.
     // Never persist caller-provided tool names or arguments in the receipt.
     onToolCall({ name: name === TOOL_NAME ? TOOL_NAME : null, text });
     if (name !== TOOL_NAME) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "Unknown tool" } };
@@ -66,6 +67,7 @@ export function handleMcpMessage(message, onToolCall = () => {}) {
 }
 
 function main() {
+  let initialized = false;
   const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   input.on("line", (line) => {
     if (!line.trim()) return;
@@ -74,14 +76,16 @@ function main() {
       const response = handleMcpMessage(message, ({ name, text }) => {
         const receiptPath = process.env.CANIAGENT_MCP_RECEIPT_PATH;
         if (receiptPath) fs.appendFileSync(receiptPath, JSON.stringify({
-          name, matched: name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
+          name, matched: initialized && name === TOOL_NAME && text === process.env.CANIAGENT_MCP_EXPECTED_TEXT
         }) + "\n", { mode: 0o600 });
       });
       // A missing tool-call receipt only proves zero calls after an actual MCP handshake.
       // If initialization never occurred, the probe must remain inconclusive.
-      if (message?.method === "initialize" && response?.result?.capabilities?.tools
-        && process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
-        fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });
+      if (message?.method === "initialize" && response?.result?.capabilities?.tools) {
+        initialized = true;
+        if (process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
+          fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });
+        }
       }
       if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
     } catch {
