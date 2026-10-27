@@ -235,7 +235,9 @@ test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
   const receiptPath = path.join(temp, "receipt.jsonl");
   const valid = JSON.stringify({ name: TOOL_NAME, matched: true });
   try {
-    assert.deepEqual(readMcpReceipt(receiptPath), [], "missing receipt means no calls");
+    assert.equal(readMcpReceipt(receiptPath), null, "missing receipt is inconclusive");
+    fs.writeFileSync(receiptPath, "");
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "existing empty receipt means no calls");
     for (const [name, content] of Object.entries({
       duplicateName: `{"name":null,"name":"${TOOL_NAME}","matched":true}`,
       duplicateMatched: `{"name":"${TOOL_NAME}","matched":false,"matched":true}`,
@@ -275,6 +277,33 @@ test("MCP evidence distinguishes absent handshake from a genuine zero-call resul
   assert.equal(classifyMcpEvidence(success, valid, false), "inconclusive");
   assert.equal(classifyMcpEvidence(success, null, true), "inconclusive");
   assert.equal(classifyMcpEvidence({ outcome: "not_found" }, [], false), "skip");
+});
+
+test("MCP handshake creates a zero-call receipt; missing evidence stays inconclusive", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-zero-call-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.jsonl");
+    const initializedPath = path.join(temp, "initialized");
+    const serverPath = fileURLToPath(new URL("../scripts/mcp-echo-server.js", import.meta.url));
+    const initialize = { jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {},
+        clientInfo: { name: "test", version: "1" } } };
+    const notification = { jsonrpc: "2.0", method: "notifications/initialized" };
+    const child = spawnSync(process.execPath, [serverPath], {
+      input: [initialize, notification].map(JSON.stringify).join("\n") + "\n",
+      encoding: "utf8", timeout: 5000,
+      env: { ...process.env, CANIAGENT_MCP_RECEIPT_PATH: receiptPath,
+        CANIAGENT_MCP_INITIALIZED_PATH: initializedPath }
+    });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(readMcpInitialization(initializedPath), true);
+    assert.deepEqual(readMcpReceipt(receiptPath), [], "completed handshake must create empty receipt");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true), "fail");
+    fs.rmSync(receiptPath);
+    assert.equal(readMcpReceipt(receiptPath), null);
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath), true),
+      "inconclusive", "lost receipt must not become a false zero-call failure");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
 test("MCP server records initialization only after a protocol handshake", () => {

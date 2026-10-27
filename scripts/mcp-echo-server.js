@@ -122,6 +122,11 @@ function main() {
     if (message?.method === "notifications/initialized"
       && message.jsonrpc === "2.0" && message.id === undefined
       && validNotificationParams && initializeResponded && !initialized) {
+      // Create a zero-call receipt before publishing successful handshake evidence.
+      // If this fails, the server must not advertise a trustworthy initialized state.
+      if (process.env.CANIAGENT_MCP_RECEIPT_PATH) {
+        fs.closeSync(fs.openSync(process.env.CANIAGENT_MCP_RECEIPT_PATH, "a", 0o600));
+      }
       initialized = true;
       if (process.env.CANIAGENT_MCP_INITIALIZED_PATH) {
         fs.writeFileSync(process.env.CANIAGENT_MCP_INITIALIZED_PATH, "initialized\n", { mode: 0o600 });

@@ -48,7 +48,9 @@ export function classifyMcpResult(execution, receipt = []) {
 
 export function readMcpReceipt(receiptPath) {
   try {
-    if (!fs.existsSync(receiptPath)) return [];
+    // No receipt file is missing evidence, not proof of zero tool calls.
+    // The server creates an empty file when the MCP handshake completes.
+    if (!fs.existsSync(receiptPath)) return null;
     if (fs.statSync(receiptPath).size > 65536) return null;
     const content = fs.readFileSync(receiptPath, "utf8");
     if (!content) return [];
