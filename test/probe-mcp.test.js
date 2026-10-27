@@ -100,7 +100,7 @@ test("MCP calls before initialize never become passing evidence", () => {
     });
     assert.equal(child.status, 0, child.stderr);
     assert.equal(child.stdout.trim().split("\n").length,
-      requests.filter((request) => request.method !== "notifications/initialized").length);
+      requests.filter((request) => request.method !== "notifications/initialized" || request.id !== undefined).length);
     return { receipt: readMcpReceipt(receiptPath), initialized: readMcpInitialization(initializedPath) };
   };
   try {
