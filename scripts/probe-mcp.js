@@ -50,8 +50,10 @@ export function readMcpReceipt(receiptPath) {
   try {
     // No receipt file is missing evidence, not proof of zero tool calls.
     // The server creates an empty file when the MCP handshake completes.
-    if (!fs.existsSync(receiptPath)) return null;
-    if (fs.statSync(receiptPath).size > 65536) return null;
+    const stat = fs.lstatSync(receiptPath);
+    // The fixture writes regular files only. Never follow an agent-created symlink
+    // or read unbounded/nonregular evidence (for example a FIFO).
+    if (!stat.isFile() || stat.size > 65536) return null;
     const content = fs.readFileSync(receiptPath, "utf8");
     if (!content) return [];
     const lines = content.split("\n");
@@ -75,8 +77,13 @@ export function readMcpReceipt(receiptPath) {
 // A successful agent process is not negative MCP evidence unless its server
 // actually completed the protocol initialize handshake.
 export function readMcpInitialization(initializedPath) {
-  try { return fs.readFileSync(initializedPath, "utf8") === "initialized\n"; }
-  catch (error) { return error?.code === "ENOENT" ? false : null; }
+  try {
+    const stat = fs.lstatSync(initializedPath);
+    // Read only the fixed-size marker emitted by this fixture. Oversized,
+    // symlinked, or nonregular evidence must not establish initialization.
+    if (!stat.isFile() || stat.size !== Buffer.byteLength("initialized\n")) return false;
+    return fs.readFileSync(initializedPath, "utf8") === "initialized\n";
+  } catch (error) { return error?.code === "ENOENT" ? false : null; }
 }
 
 export function classifyMcpEvidence(execution, receipt, initialized) {

@@ -354,6 +354,39 @@ test("MCP receipt parsing fails closed on invalid JSONL structure", () => {
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("MCP evidence readers reject oversized, symlinked, and nonregular files", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-evidence-files-"));
+  const receiptPath = path.join(temp, "receipt.jsonl");
+  const initializedPath = path.join(temp, "initialized");
+  const directoryPath = path.join(temp, "directory");
+  try {
+    fs.writeFileSync(receiptPath, JSON.stringify({ name: TOOL_NAME, matched: true }) + "\n");
+    fs.writeFileSync(initializedPath, "initialized\n");
+    assert.deepEqual(readMcpReceipt(receiptPath), [{ name: TOOL_NAME, matched: true }]);
+    assert.equal(readMcpInitialization(initializedPath), true);
+
+    fs.mkdirSync(directoryPath);
+    assert.equal(readMcpReceipt(directoryPath), null, "directory cannot be receipt evidence");
+    assert.equal(readMcpInitialization(directoryPath), false, "directory cannot be a handshake marker");
+
+    if (process.platform !== "win32") {
+      const receiptLink = path.join(temp, "receipt-link");
+      const initializedLink = path.join(temp, "initialized-link");
+      fs.symlinkSync(receiptPath, receiptLink);
+      fs.symlinkSync(initializedPath, initializedLink);
+      assert.equal(readMcpReceipt(receiptLink), null, "symlink cannot be receipt evidence");
+      assert.equal(readMcpInitialization(initializedLink), false, "symlink cannot be a handshake marker");
+    }
+
+    fs.writeFileSync(receiptPath, "x".repeat(65537));
+    fs.writeFileSync(initializedPath, "initialized\n" + "x".repeat(1024 * 1024));
+    assert.equal(readMcpReceipt(receiptPath), null, "oversized receipt is inconclusive");
+    assert.equal(readMcpInitialization(initializedPath), false, "oversized marker is not a handshake");
+    assert.equal(classifyMcpEvidence({ outcome: "success" }, readMcpReceipt(receiptPath),
+      readMcpInitialization(initializedPath)), "inconclusive");
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP evidence distinguishes absent handshake from a genuine zero-call result", () => {
   const success = { outcome: "success" };
   const valid = [{ name: TOOL_NAME, matched: true }];
