@@ -17,6 +17,20 @@ export const MCP_PROBE_SPECS = {
   opencode: { args: (prompt) => ["run", prompt] }
 };
 
+// On Windows, shell:true turns a missing executable into a shell exit code
+// rather than ENOENT. Check PATH shims before invoking cmd.exe so a genuinely
+// absent provider is reported as "skip", not a failed MCP behavior probe.
+export function commandExistsOnWindowsPath(command, env = process.env) {
+  const envValue = (name) => env[name] ?? Object.entries(env).find(([key]) => key.toUpperCase() === name)?.[1];
+  const directories = (envValue("PATH") ?? "").split(path.delimiter).filter(Boolean);
+  const extensions = (envValue("PATHEXT") || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const names = path.extname(command) ? [command] : [command, ...extensions.map((ext) => command + ext)];
+  return directories.some((dir) => names.some((name) => {
+    try { return fs.statSync(path.join(dir.replace(/^"|"$/g, ""), name)).isFile(); }
+    catch { return false; }
+  }));
+}
+
 export function createMcpFixture(baseDir, agentId, serverPath = SERVER_PATH) {
   const workspace = path.join(baseDir, "workspace");
   fs.mkdirSync(workspace, { recursive: true });
@@ -124,6 +138,10 @@ export function classifyMcpEvidence(execution, receipt, initialized) {
 }
 
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
+  if (process.platform === "win32" && !commandExistsOnWindowsPath(command, env)) {
+    return { command: redactProbeOutput([command, ...args].join(" ")),
+      outcome: "not_found", status: null, signal: null, stdout: "", stderr: "" };
+  }
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   return {
     command: redactProbeOutput([command, ...args].join(" ")),

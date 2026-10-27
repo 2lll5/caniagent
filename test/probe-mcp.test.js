@@ -6,8 +6,21 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { handleMcpMessage, TOOL_NAME, MCP_PROTOCOL_VERSION } from "../scripts/mcp-echo-server.js";
-import { MCP_MARKER, createMcpFixture, classifyMcpResult, classifyMcpEvidence, readMcpReceipt, readMcpInitialization } from "../scripts/probe-mcp.js";
+import { MCP_MARKER, createMcpFixture, classifyMcpResult, classifyMcpEvidence, readMcpReceipt, readMcpInitialization, commandExistsOnWindowsPath } from "../scripts/probe-mcp.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
+
+test("Windows PATH command preflight distinguishes npm shims from missing CLIs", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-mcp-windows-path-"));
+  try {
+    fs.writeFileSync(path.join(temp, "claude.cmd"), "@echo off\n");
+    const env = { PATH: temp, PATHEXT: ".cmd;.exe" };
+    assert.equal(commandExistsOnWindowsPath("claude", env), true);
+    assert.equal(commandExistsOnWindowsPath("claude.cmd", env), true);
+    assert.equal(commandExistsOnWindowsPath("codex", env), false);
+    assert.equal(commandExistsOnWindowsPath("claude", { PATH: path.join(temp, "absent"), PATHEXT: ".cmd" }), false);
+    assert.equal(commandExistsOnWindowsPath("claude", { Path: temp, Pathext: ".cmd" }), true);
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
 
 test("MCP echo server exposes and calls deterministic tool", () => {
   const listed = handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" });
