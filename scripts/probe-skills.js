@@ -69,8 +69,8 @@ export function captureSkillProbeResult(result, command, args, marker) {
   };
 }
 
-function run(command, args, { cwd, env, timeout = 60000, marker } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+export function runSkillProbe(command, args, { cwd, env, timeout = 60000, marker } = {}) {
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32", maxBuffer: 8 * 1024 * 1024 });
   return captureSkillProbeResult(result, command, args, marker);
 }
 
@@ -93,9 +93,9 @@ function main() {
         fs.mkdirSync(home, { recursive: true });
         const env = isolatedProbeEnvironment(home);
         const fixture = createSkillFixture(temp, agent.id, scope);
-        const { execution: version } = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+        const { execution: version } = runSkillProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
         const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
-        const { execution, markerVerdict } = run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker });
+        const { execution, markerVerdict } = runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker });
         results.push({
           agent: agent.id,
           observedAt,

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture } from "../scripts/probe-skills.js";
+import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture, runSkillProbe } from "../scripts/probe-skills.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("skill probe adapters use documented project discovery conventions", () => {
@@ -158,4 +158,21 @@ test("failed skill execution stays inconclusive even with raw stdout marker", ()
     { status: 1, signal: null, stdout: marker, stderr: "" }, "fake-agent", ["probe"], marker
   );
   assert.deepEqual(markerVerdict, { discovered: false, verdict: "inconclusive" });
+});
+
+test("skill probe handles successful stdout beyond Node's default 1 MiB buffer", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skills-large-output-"));
+  try {
+    const fixture = path.join(dir, "large-output.cjs");
+    fs.writeFileSync(fixture, `process.stdout.write("x".repeat(1_100_000) + "\\n" + ${JSON.stringify(marker)});\n`);
+    const { execution, markerVerdict } = runSkillProbe(process.execPath, [fixture], { cwd: dir, marker });
+    assert.equal(execution.outcome, "success");
+    assert.equal(execution.status, 0);
+    assert.deepEqual(markerVerdict, { discovered: true, verdict: "pass" });
+    assert.equal(execution.stdout.length, 12000);
+    assert.equal(JSON.stringify({ execution, markerVerdict }).includes(marker), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

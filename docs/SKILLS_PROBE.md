@@ -35,6 +35,8 @@ This environment redirection reduces accidental reuse of normal agent configurat
 
 Each result records the agent version, OS/platform metadata, exact redacted command, exit status, redacted/truncated stdout and stderr, scope, and exact discovery path. Project and user scopes run independently so one successful discovery cannot satisfy another scope's evidence.
 
+The child-process capture has a bounded 8 MiB buffer rather than Node.js's default 1 MiB, so long but successful output can still be classified. Buffer overflow remains a subprocess error and therefore `inconclusive`; the full capture is never persisted.
+
 The verdict examines the complete, original **stdout** in memory before evidence redaction and truncation. Only redacted/truncated stdout and stderr are serialized; a marker appearing **only in stderr diagnostics** cannot produce `pass`. This avoids false negatives when a valid marker appears beyond the 12,000-character evidence limit, without retaining raw output in artifacts.
 
 A marker counts as `pass` only when the **last non-empty stdout line** matches the marker exactly after a successful execution (surrounding whitespace is allowed). Substrings embedded in echoed `SKILL.md` instructions, tool diagnostics, or other text remain `inconclusive`; a marker echoed earlier followed by a different final response is also `inconclusive`. A tool could still echo the marker as the final line, so this is **provisional discovery evidence**, not proof of skill activation or final-model-response provenance. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
