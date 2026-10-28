@@ -88,9 +88,15 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       (event.type === "tool_use" && event.part?.state?.status === "error"))) return inconclusive;
     const replyIndex = events.findLastIndex((event) => event.type === "text" &&
       event.part?.type === "text" && typeof event.part.text === "string");
-    if (replyIndex < 0 ||
-      events.findLastIndex((event) => event.type === "step_start" &&
-        event.part?.type === "step-start") > replyIndex ||
+    // A model reply must belong to an active step, not a bare event or
+    // text emitted after an already-finished step without a new start.
+    const startIndex = events.findLastIndex((event) => event.type === "step_start" &&
+      event.part?.type === "step-start");
+    const finishedBeforeReply = events.findLastIndex((event, index) =>
+      index < replyIndex && event.type === "step_finish" &&
+      event.part?.type === "step-finish");
+    if (replyIndex < 0 || startIndex < 0 || startIndex > replyIndex ||
+      finishedBeforeReply > startIndex ||
       events.findLastIndex((event) => event.type === "tool_use") > replyIndex) return inconclusive;
     const finishIndex = events.findLastIndex((event) => event.type === "step_finish" &&
       event.part?.type === "step-finish");
