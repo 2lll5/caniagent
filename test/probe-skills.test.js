@@ -59,6 +59,14 @@ test("Codex skill probe requires a completed JSONL model reply, not a tool echo"
   assert.deepEqual(classify(stream(start, message(marker), { type: "error", message: "oops" }, end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.failed", item: { type: "command_execution", error: "skill activation failed" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.failed", item: { type: "agent_message", text: marker } }, message(marker), end)), inconclusive);
+  // Codex also reports tool failures in item.completed, not only item.failed.
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "failed", exit_code: 1 } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code: 1 } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "declined" } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "failed" } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: "permission denied" } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code: 0 } }, message(marker), end)), pass);
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: null } }, message(marker), end)), pass);
   assert.deepEqual(classify(stream(start, message(marker), end, start, end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.started", item: { type: "agent_message", text: marker } }, end)), inconclusive);
   assert.deepEqual(classify(stream(start, message(marker), end) + "\n{"), inconclusive);

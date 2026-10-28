@@ -57,7 +57,15 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     // prior prompt/tool echoes, stale turns and failed streams cannot pass.
     if (events.some((event) => !event || typeof event !== "object" ||
       Array.isArray(event) || event.type === "turn.failed" ||
-      event.type === "error" || event.type === "item.failed")) return inconclusive;
+      event.type === "error" || event.type === "item.failed" ||
+      // A tool can finish with an error inside item.completed. A successful
+      // final model reply must not conceal a failed/declined tool invocation.
+      (event.type === "item.completed" && (
+        event.item?.status === "failed" || event.item?.status === "declined" ||
+        (event.item?.type === "command_execution" &&
+          Number.isInteger(event.item.exit_code) && event.item.exit_code !== 0) ||
+        (event.item?.type === "mcp_tool_call" && event.item.error != null)
+      )))) return inconclusive;
     const completed = events.length - 1;
     const started = events.findLastIndex((event) => event.type === "turn.started");
     const reply = events[completed - 1];
