@@ -50,17 +50,26 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     : { discovered: false, verdict: "inconclusive" };
 }
 
-function run(command, args, { cwd, env, timeout = 60000 } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+// Classify the original stdout before redaction/truncation; never persist it.
+export function captureSkillProbeResult(result, command, args, marker) {
+  const outcome = classifyProbeExecution(result);
   return {
-    command: redactProbeOutput([command, ...args].join(" ")),
-    outcome: classifyProbeExecution(result),
-    status: result.status,
-    signal: result.signal,
-    stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
-    stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
-    error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
+    execution: {
+      command: redactProbeOutput([command, ...args].join(" ")),
+      outcome,
+      status: result.status,
+      signal: result.signal,
+      stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
+      stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
+      error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
+    },
+    markerVerdict: marker === undefined ? undefined : classifySkillOutput(result.stdout ?? "", marker, outcome)
   };
+}
+
+function run(command, args, { cwd, env, timeout = 60000, marker } = {}) {
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+  return captureSkillProbeResult(result, command, args, marker);
 }
 
 
@@ -82,10 +91,9 @@ function main() {
         fs.mkdirSync(home, { recursive: true });
         const env = isolatedProbeEnvironment(home);
         const fixture = createSkillFixture(temp, agent.id, scope);
-        const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+        const { execution: version } = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
         const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
-        const execution = run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env });
-        const combined = `${execution.stdout}\n${execution.stderr}`;
+        const { execution, markerVerdict } = run(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker });
         results.push({
           agent: agent.id,
           observedAt,
@@ -93,7 +101,7 @@ function main() {
           discoveryPath: fixture.discoveryPath,
           version,
           execution,
-          ...classifySkillOutput(combined, fixture.marker, execution.outcome)
+          ...markerVerdict
         });
       } finally {
         fs.rmSync(temp, { recursive: true, force: true });

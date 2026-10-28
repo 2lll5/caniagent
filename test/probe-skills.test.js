@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SKILL_PROBE_SPECS, classifySkillOutput, createSkillFixture } from "../scripts/probe-skills.js";
+import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture } from "../scripts/probe-skills.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("skill probe adapters use documented project discovery conventions", () => {
@@ -93,4 +93,34 @@ test("skill output classification never turns missing evidence into unsupported"
   assert.deepEqual(classifySkillOutput("prefix CANIAGENT_SKILL_CODEX_PROJECT suffix", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: true, verdict: "pass" });
   assert.deepEqual(classifySkillOutput("no marker", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: false, verdict: "inconclusive" });
   assert.deepEqual(classifySkillOutput("CANIAGENT_SKILL_CODEX_PROJECT", "CANIAGENT_SKILL_CODEX_PROJECT", "error"), { discovered: false, verdict: "inconclusive" });
+});
+
+test("skill verdict uses full raw stdout while saved evidence stays truncated", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const rawStdout = "x".repeat(13000) + marker;
+  const { execution, markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: rawStdout, stderr: "" }, "fake-agent", ["probe"], marker
+  );
+  assert.deepEqual(markerVerdict, { discovered: true, verdict: "pass" });
+  assert.equal(execution.stdout.length, 12000);
+  assert.equal(execution.stdout.includes(marker), false);
+  assert.equal(JSON.stringify({ execution, markerVerdict }).includes(marker), false);
+});
+
+test("skill marker in diagnostics alone cannot produce a pass", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const { execution, markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: "", stderr: `diagnostic: ${marker}` },
+    "fake-agent", ["probe"], marker
+  );
+  assert.equal(execution.stderr.includes(marker), true);
+  assert.deepEqual(markerVerdict, { discovered: false, verdict: "inconclusive" });
+});
+
+test("failed skill execution stays inconclusive even with raw stdout marker", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const { markerVerdict } = captureSkillProbeResult(
+    { status: 1, signal: null, stdout: marker, stderr: "" }, "fake-agent", ["probe"], marker
+  );
+  assert.deepEqual(markerVerdict, { discovered: false, verdict: "inconclusive" });
 });

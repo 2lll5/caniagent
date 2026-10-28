@@ -33,6 +33,8 @@ This environment redirection reduces accidental reuse of normal agent configurat
 
 Each result records the agent version, OS/platform metadata, exact redacted command, exit status, redacted/truncated stdout and stderr, scope, and exact discovery path. Project and user scopes run independently so one successful discovery cannot satisfy another scope's evidence.
 
-A marker observed after a successful execution is currently `pass`, but it can come from a tool or diagnostic echo rather than a final model response. Treat this as provisional discovery evidence, not proof of skill activation. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
+The verdict examines the complete, original **stdout** in memory before evidence redaction and truncation. Only redacted/truncated stdout and stderr are serialized; a marker appearing **only in stderr diagnostics** cannot produce `pass`. This avoids false negatives when a valid marker appears beyond the 12,000-character evidence limit, without retaining raw output in artifacts.
+
+A marker in successful stdout is currently `pass`, but it can still come from a tool echo rather than a final model response. Treat this as provisional discovery evidence, not proof of skill activation. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
 
 Do not update `data/matrix.json` from documentation alone or a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.
