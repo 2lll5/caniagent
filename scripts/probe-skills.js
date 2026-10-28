@@ -44,8 +44,9 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
 }
 
 export function classifySkillOutput(output, marker, executionOutcome = "success") {
-  if (executionOutcome !== "success") return { discovered: false, verdict: "inconclusive" };
-  return output.includes(marker)
+  if (executionOutcome !== "success" || !marker) return { discovered: false, verdict: "inconclusive" };
+  // Tool output can echo the SKILL.md instruction line; a substring is not a response.
+  return output.split(/\r?\n/).some((line) => line.trim() === marker)
     ? { discovered: true, verdict: "pass" }
     : { discovered: false, verdict: "inconclusive" };
 }

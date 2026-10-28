@@ -105,14 +105,25 @@ test("undocumented skill scope is rejected instead of guessed", () => {
 });
 
 test("skill output classification never turns missing evidence into unsupported", () => {
-  assert.deepEqual(classifySkillOutput("prefix CANIAGENT_SKILL_CODEX_PROJECT suffix", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: true, verdict: "pass" });
+  assert.deepEqual(classifySkillOutput("CANIAGENT_SKILL_CODEX_PROJECT", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: true, verdict: "pass" });
+  assert.deepEqual(classifySkillOutput("prefix CANIAGENT_SKILL_CODEX_PROJECT suffix", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: false, verdict: "inconclusive" });
   assert.deepEqual(classifySkillOutput("no marker", "CANIAGENT_SKILL_CODEX_PROJECT"), { discovered: false, verdict: "inconclusive" });
   assert.deepEqual(classifySkillOutput("CANIAGENT_SKILL_CODEX_PROJECT", "CANIAGENT_SKILL_CODEX_PROJECT", "error"), { discovered: false, verdict: "inconclusive" });
 });
 
+test("skill marker must be a standalone stdout line, not a tool echo or substring", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  assert.deepEqual(classifySkillOutput(`When invoked for the probe, reply with exactly: ${marker}`, marker), inconclusive);
+  assert.deepEqual(classifySkillOutput(`prefix ${marker} suffix`, marker), inconclusive);
+  assert.deepEqual(classifySkillOutput(`${marker}_EXTRA`, marker), inconclusive);
+  assert.deepEqual(classifySkillOutput(`logs\r\n ${marker} \r\n`, marker), { discovered: true, verdict: "pass" });
+  assert.deepEqual(classifySkillOutput("", ""), inconclusive);
+});
+
 test("skill verdict uses full raw stdout while saved evidence stays truncated", () => {
   const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
-  const rawStdout = "x".repeat(13000) + marker;
+  const rawStdout = "x".repeat(13000) + "\n" + marker;
   const { execution, markerVerdict } = captureSkillProbeResult(
     { status: 0, signal: null, stdout: rawStdout, stderr: "" }, "fake-agent", ["probe"], marker
   );
