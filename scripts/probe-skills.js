@@ -8,7 +8,7 @@ import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput
 import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const SKILL_PROBE_SPECS = {
-  codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
+  codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], outputFormat: "codex-result-jsonl", args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", "--json", prompt] },
   "claude-code": { projectPath: [".claude", "skills"], userPath: [".claude", "skills"], versionArgs: ["--version"], outputFormat: "claude-result-json", args: (prompt) => ["-p", prompt, "--output-format", "json"] },
   "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], outputFormat: "gemini-result-json", args: (prompt) => ["--approval-mode=yolo", "-p", prompt, "--output-format", "json"] },
   opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
@@ -46,6 +46,25 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
 export function classifySkillOutput(output, marker, executionOutcome = "success", outputFormat = "text") {
   const inconclusive = { discovered: false, verdict: "inconclusive" };
   if (executionOutcome !== "success" || !marker) return inconclusive;
+  if (outputFormat === "codex-result-jsonl") {
+    let events;
+    try { events = output.trim().split(/\r?\n/).map((line) => JSON.parse(line)); }
+    catch { return inconclusive; }
+    // Codex --json emits events, not just the final answer. Require the
+    // terminal turn.completed directly after a completed agent_message;
+    // prior prompt/tool echoes, stale turns and failed streams cannot pass.
+    if (events.some((event) => !event || typeof event !== "object" ||
+      Array.isArray(event) || event.type === "turn.failed" || event.type === "error")) return inconclusive;
+    const completed = events.length - 1;
+    const started = events.findLastIndex((event) => event.type === "turn.started");
+    const reply = events[completed - 1];
+    if (started < 0 || started >= completed - 1 ||
+      events[completed]?.type !== "turn.completed" ||
+      reply?.type !== "item.completed" || reply.item?.type !== "agent_message" ||
+      typeof reply.item.text !== "string") return inconclusive;
+    return reply.item.text.trim() === marker
+      ? { discovered: true, verdict: "pass" } : inconclusive;
+  }
   if (outputFormat === "claude-result-json") {
     let value;
     try { value = JSON.parse(output); } catch { return inconclusive; }
