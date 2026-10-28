@@ -17,13 +17,13 @@ The current adapters cover these documented paths:
 | Agent | Project scope | User scope |
 | --- | --- | --- |
 | Codex | `.agents/skills/<name>/SKILL.md` | `~/.agents/skills/<name>/SKILL.md` |
-| Claude Code | `.claude/skills/<name>/SKILL.md` | not encoded yet |
+| Claude Code | `.claude/skills/<name>/SKILL.md` | `~/.claude/skills/<name>/SKILL.md` |
 | Gemini CLI | `.gemini/skills/<name>/SKILL.md` | `~/.gemini/skills/<name>/SKILL.md` |
 | OpenCode | `.opencode/skills/<name>/SKILL.md` | `~/.config/opencode/skills/<name>/SKILL.md` |
 
 Gemini CLI now documents Agent Skills discovery at both `.gemini/skills/` and the interoperable `.agents/skills/` alias for workspace and user scopes. The probe uses the Gemini-native `.gemini/skills/` path and `--approval-mode=yolo` so the documented activation-consent step can complete in non-interactive `-p` mode. This flag bypasses normal approval prompts; a temporary workspace and redirected configuration paths are **not** an execution sandbox. Run the opt-in probe only with trusted fixtures and appropriate external execution controls.
 
-The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code user scope is deliberately not guessed here until its current path is independently evidenced for this probe. Missing adapters must not be interpreted as unsupported behavior.
+The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code documents personal skills under `~/.claude/skills/<name>/SKILL.md` ([official Skills documentation](https://code.claude.com/docs/en/skills#choose-where-skills-load)). The probe tests this path only under its redirected temporary `HOME` and `CLAUDE_CONFIG_DIR`; adding a fixture is not provider-backed compatibility evidence. Missing adapters must not be interpreted as unsupported behavior.
 
 ## Isolation and evidence
 
@@ -33,6 +33,6 @@ This environment redirection reduces accidental reuse of normal agent configurat
 
 Each result records the agent version, OS/platform metadata, exact redacted command, exit status, redacted/truncated stdout and stderr, scope, and exact discovery path. Project and user scopes run independently so one successful discovery cannot satisfy another scope's evidence.
 
-A marker observed after a successful execution is `pass`. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
+A marker observed after a successful execution is currently `pass`, but it can come from a tool or diagnostic echo rather than a final model response. Treat this as provisional discovery evidence, not proof of skill activation. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
 
 Do not update `data/matrix.json` from documentation alone or a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.

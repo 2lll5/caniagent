@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { SKILL_PROBE_SPECS, classifySkillOutput, createSkillFixture } from "../scripts/probe-skills.js";
+import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("skill probe adapters use documented project discovery conventions", () => {
   assert.deepEqual(SKILL_PROBE_SPECS.codex.projectPath, [".agents", "skills"]);
@@ -14,7 +15,7 @@ test("skill probe adapters use documented project discovery conventions", () => 
 
 test("skill probe adapters only encode documented isolated user discovery conventions", () => {
   assert.deepEqual(SKILL_PROBE_SPECS.codex.userPath, [".agents", "skills"]);
-  assert.equal(SKILL_PROBE_SPECS["claude-code"].userPath, undefined);
+  assert.deepEqual(SKILL_PROBE_SPECS["claude-code"].userPath, [".claude", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].userPath, [".gemini", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS.opencode.userPath, [".config", "opencode", "skills"]);
 });
@@ -59,10 +60,30 @@ test("Gemini user skill fixture stays inside the isolated home", () => {
   }
 });
 
-test("undocumented user scope is rejected instead of guessed", () => {
+test("Claude Code personal skill fixture uses only the isolated config home", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-claude-personal-skill-test-"));
+  try {
+    const fixture = createSkillFixture(temp, "claude-code", "user");
+    const env = isolatedProbeEnvironment(path.join(temp, "home"), {
+      HOME: "/outside/home",
+      CLAUDE_CONFIG_DIR: "/outside/claude"
+    });
+    assert.equal(fixture.discoveryPath, `~/.claude/skills/${fixture.skillName}/`);
+    assert.equal(env.CLAUDE_CONFIG_DIR, path.join(temp, "home", ".claude"));
+    assert.equal(path.relative(env.CLAUDE_CONFIG_DIR, fixture.skillDir), path.join("skills", fixture.skillName));
+    assert.equal(fs.existsSync(path.join(fixture.skillDir, "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(fixture.workspace, ".claude", "skills", fixture.skillName, "SKILL.md")), false);
+    assert.match(fs.readFileSync(path.join(fixture.skillDir, "SKILL.md"), "utf8"), new RegExp(fixture.marker));
+    assert.doesNotMatch(fs.readFileSync(path.join(fixture.workspace, "README.md"), "utf8"), new RegExp(fixture.marker));
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("undocumented skill scope is rejected instead of guessed", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skill-unknown-scope-test-"));
   try {
-    assert.throws(() => createSkillFixture(temp, "claude-code", "user"), /No user-scope Agent Skills discovery path/);
+    assert.throws(() => createSkillFixture(temp, "claude-code", "system"), /No system-scope Agent Skills discovery path/);
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
