@@ -176,3 +176,23 @@ test("skill probe handles successful stdout beyond Node's default 1 MiB buffer",
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("skill probe buffer overflow cannot certify a partial marker", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skills-overflow-"));
+  try {
+    const fixture = path.join(dir, "overflow.cjs");
+    // The marker is deliberately emitted after the 8 MiB limit: a partial
+    // capture must never become a successful discovery verdict.
+    fs.writeFileSync(fixture,
+      `process.stdout.write("x".repeat(8 * 1024 * 1024 + 1024) + "\\n" + ${JSON.stringify(marker)});\n`);
+    const { execution, markerVerdict } = runSkillProbe(process.execPath, [fixture], { cwd: dir, marker });
+    assert.equal(execution.outcome, "spawn_error");
+    assert.match(execution.error ?? "", /ENOBUFS/);
+    assert.deepEqual(markerVerdict, { discovered: false, verdict: "inconclusive" });
+    assert.ok(execution.stdout.length <= 12000);
+    assert.equal(JSON.stringify({ execution, markerVerdict }).includes(marker), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
