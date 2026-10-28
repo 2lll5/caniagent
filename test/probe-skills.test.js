@@ -182,7 +182,28 @@ test("Gemini skill verdict uses only the successful final JSON response", () => 
   assert.deepEqual(markerVerdict, inconclusive);
 });
 
-test("project skill fixture contains a deterministic marker only inside SKILL.md", () => {
+test("skill fixture marker is a fresh unpredictable challenge, not derivable from the skill name", () => {
+  const firstDir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skills-random-a-"));
+  const secondDir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skills-random-b-"));
+  try {
+    const first = createSkillFixture(firstDir, "codex", "project");
+    const second = createSkillFixture(secondDir, "codex", "project");
+    assert.equal(first.skillName, second.skillName);
+    assert.match(first.marker, /^CANIAGENT_SKILL_[A-F0-9]{32}$/);
+    assert.match(second.marker, /^CANIAGENT_SKILL_[A-F0-9]{32}$/);
+    assert.notEqual(first.marker, second.marker);
+    assert.notEqual(first.marker, "CANIAGENT_SKILL_CODEX_PROJECT");
+    assert.match(fs.readFileSync(path.join(first.skillDir, "SKILL.md"), "utf8"), new RegExp(first.marker));
+    assert.equal(first.skillName.includes(first.marker), false);
+    assert.equal(first.discoveryPath.includes(first.marker), false);
+    assert.equal(fs.readFileSync(path.join(first.workspace, "README.md"), "utf8").includes(first.marker), false);
+  } finally {
+    fs.rmSync(firstDir, { recursive: true, force: true });
+    fs.rmSync(secondDir, { recursive: true, force: true });
+  }
+});
+
+test("project skill fixture contains the generated marker only inside SKILL.md", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-skill-probe-test-"));
   try {
     const fixture = createSkillFixture(temp, "codex");

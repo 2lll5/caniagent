@@ -10,7 +10,7 @@ npm run probe:skills -- --output=artifacts/skills-probe.json
 
 ## What it tests
 
-For each agent and scope with a documented skill path encoded by CanIAgent, the probe creates a temporary workspace and/or isolated home containing one uniquely named skill. The marker expected from that skill appears only in `SKILL.md`; the prompt names the skill but does not reveal the marker and tells the agent not to search the filesystem for skill files.
+For each agent and scope with a documented skill path encoded by CanIAgent, the probe creates a temporary workspace and/or isolated home containing one uniquely named skill. The expected marker is a fresh 128-bit random challenge for each fixture, present only in `SKILL.md`; it cannot be reconstructed from the predictable agent/scope skill name. The prompt names the skill but does not reveal the marker and tells the agent not to search the filesystem for skill files. This reduces false positives from a model guessing the old deterministic marker without loading the skill, but still does not independently prove skill activation.
 
 The current adapters cover these documented paths:
 

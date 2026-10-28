@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,8 +20,9 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
   if (!spec) throw new Error(`No Agent Skills probe adapter for ${agentId}`);
   const scopePath = scope === "project" ? spec.projectPath : scope === "user" ? spec.userPath : undefined;
   if (!scopePath) throw new Error(`No ${scope}-scope Agent Skills discovery path for ${agentId}`);
-  const suffix = `${agentId}-${scope}`.replaceAll("-", "_").toUpperCase();
-  const marker = `CANIAGENT_SKILL_${suffix}`;
+  // A predictable marker can be reconstructed from the skill name without
+  // loading SKILL.md. Use a fresh 128-bit challenge for each fixture.
+  const marker = `CANIAGENT_SKILL_${randomBytes(16).toString("hex").toUpperCase()}`;
   const skillName = `caniagent-probe-${agentId}-${scope}`;
   const workspace = path.join(baseDir, "workspace");
   const root = scope === "project" ? workspace : path.join(baseDir, "home");
@@ -31,7 +33,7 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), [
     "---",
     `name: ${skillName}`,
-    "description: CanIAgent deterministic discovery probe. Use when explicitly asked to run the CanIAgent skill discovery probe.",
+    "description: CanIAgent skill discovery probe. Use when explicitly asked to run the CanIAgent skill discovery probe.",
     "---",
     "",
     `When invoked for the CanIAgent skill discovery probe, reply with exactly: ${marker}`,
