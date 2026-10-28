@@ -374,7 +374,8 @@ test("skill marker in diagnostics alone cannot produce a pass", () => {
     { status: 0, signal: null, stdout: "", stderr: `diagnostic: ${marker}` },
     "fake-agent", ["probe"], marker
   );
-  assert.equal(execution.stderr.includes(marker), true);
+  assert.equal(execution.stderr.includes(marker), false);
+  assert.match(execution.stderr, /<SKILL_MARKER>/);
   assert.deepEqual(markerVerdict, { discovered: false, verdict: "inconclusive" });
 });
 
