@@ -20,6 +20,21 @@ test("skill probe adapters only encode documented isolated user discovery conven
   assert.deepEqual(SKILL_PROBE_SPECS.opencode.userPath, [".config", "opencode", "skills"]);
 });
 
+test("Codex skill probe runs from a non-Git fixture with an explicit bypass", () => {
+  assert.deepEqual(SKILL_PROBE_SPECS.codex.args("probe"), [
+    "exec", "--ephemeral", "--skip-git-repo-check", "probe"
+  ]);
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-codex-skill-git-check-test-"));
+  try {
+    for (const scope of ["project", "user"]) {
+      const fixture = createSkillFixture(temp, "codex", scope);
+      assert.equal(fs.existsSync(path.join(fixture.workspace, ".git")), false);
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("Gemini skill probe auto-approves activation in non-interactive mode", () => {
   assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].args("probe"), ["--approval-mode=yolo", "-p", "probe"]);
 });

@@ -23,6 +23,8 @@ The current adapters cover these documented paths:
 
 Gemini CLI now documents Agent Skills discovery at both `.gemini/skills/` and the interoperable `.agents/skills/` alias for workspace and user scopes. The probe uses the Gemini-native `.gemini/skills/` path and `--approval-mode=yolo` so the documented activation-consent step can complete in non-interactive `-p` mode. This flag bypasses normal approval prompts; a temporary workspace and redirected configuration paths are **not** an execution sandbox. Run the opt-in probe only with trusted fixtures and appropriate external execution controls.
 
+The Codex skill probe runs in a temporary workspace without a `.git` directory, so its `codex exec` adapter passes `--skip-git-repo-check` for both scopes. This flag is restricted to the opt-in probe invocation and does not change normal Codex project settings.
+
 The Codex user path is documented by OpenAI's Agent Skills documentation. OpenCode documents both its native global config path and compatibility paths; this probe uses the native `~/.config/opencode/skills` path. Claude Code documents personal skills under `~/.claude/skills/<name>/SKILL.md` ([official Skills documentation](https://code.claude.com/docs/en/skills#choose-where-skills-load)). The probe tests this path only under its redirected temporary `HOME` and `CLAUDE_CONFIG_DIR`; adding a fixture is not provider-backed compatibility evidence. Missing adapters must not be interpreted as unsupported behavior.
 
 ## Isolation and evidence

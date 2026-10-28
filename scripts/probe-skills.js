@@ -8,7 +8,7 @@ import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput
 import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const SKILL_PROBE_SPECS = {
-  codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
+  codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
   "claude-code": { projectPath: [".claude", "skills"], userPath: [".claude", "skills"], versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
   "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], args: (prompt) => ["--approval-mode=yolo", "-p", prompt] },
   opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
