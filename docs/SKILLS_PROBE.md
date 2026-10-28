@@ -47,6 +47,6 @@ For **Codex**, the probe requests `codex exec --json` and parses its JSONL event
 
 For **OpenCode**, the probe requests `opencode run --format json` and reads the JSONL stream. Only a model `text` event with `part.type: "text"` can establish the final marker; a later tool call, a newer step without a reply, explicit errors, a non-`stop` terminal finish, or malformed JSONL remains `inconclusive`. OpenCode v2 may omit its final `step_finish`, so an absent finish is not by itself a failure. The marker must match model text exactly; the probe does not fall back to the last stdout line.
 
-These structured verdicts verify the CLI\'s reported final model response, **not** independently that the skill was activated. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
+These structured verdicts verify the CLI's reported final model response, **not** independently that the skill was activated. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
 
 Do not update `data/matrix.json` from documentation alone or a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.
