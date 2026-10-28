@@ -84,14 +84,22 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     // later tool activity, explicit failures and incomplete terminal steps.
     if (events.some((event) => !event || typeof event !== "object" ||
       Array.isArray(event) || event.type === "error" ||
-      event.is_error === true || event.part?.type === "error" ||
-      (event.type === "tool_use" && (
-        // Tool failures may be reported as a state error payload even when
-        // the state status is not literally "error". Never certify a marker
-        // after a failed or declined tool invocation.
-        ["error", "failed", "declined"].includes(event.part?.state?.status) ||
-        event.part?.state?.error != null
-      )))) return inconclusive;
+      event.is_error === true || event.part?.type === "error")) return inconclusive;
+    // OpenCode can emit pending/running tool updates before completion.
+    // A final model reply cannot certify a skill while a tool is unresolved.
+    // Correlate updates by callID; unknown or unidentifiable states fail closed.
+    const toolStates = new Map();
+    for (const event of events) {
+      if (event.type !== "tool_use") continue;
+      const part = event.part;
+      const status = part?.state?.status;
+      if (part?.type !== "tool" || part?.state?.error != null ||
+        !["pending", "running", "completed"].includes(status)) return inconclusive;
+      const callID = part.callID;
+      if (status !== "completed" && (typeof callID !== "string" || !callID)) return inconclusive;
+      if (typeof callID === "string" && callID) toolStates.set(callID, status);
+    }
+    if ([...toolStates.values()].some((status) => status !== "completed")) return inconclusive;
     const replyIndex = events.findLastIndex((event) => event.type === "text" &&
       event.part?.type === "text" && typeof event.part.text === "string");
     // A model reply must belong to an active step, not a bare event or

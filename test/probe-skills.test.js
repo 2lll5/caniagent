@@ -92,7 +92,7 @@ test("OpenCode skill marker requires final model text, not a tool or prior step"
   const start = { type: "step_start", part: { type: "step-start" } };
   const end = { type: "step_finish", part: { type: "step-finish", reason: "stop" } };
   const message = (text) => ({ type: "text", part: { type: "text", text } });
-  const tool = { type: "tool_use", part: { type: "tool", state: { output: marker } } };
+  const tool = { type: "tool_use", part: { type: "tool", state: { status: "completed", output: marker } } };
   const classify = (stdout, outcome = "success") =>
     classifySkillOutput(stdout, marker, outcome, "opencode-result-jsonl");
   const cases = [
@@ -111,6 +111,20 @@ test("OpenCode skill marker requires final model text, not a tool or prior step"
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "declined" } } }, message(marker), end), inconclusive],
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", error: "permission denied" } } }, message(marker), end), inconclusive],
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", error: null } } }, message(marker), end), pass],
+    // Unfinished tool calls must not be hidden by a later correct model marker.
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { output: marker } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "pending" } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "pending" } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "running" } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "pending" } } },
+      { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "completed" } } }, message(marker), end), pass],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "running" } } },
+      { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "completed" } } }, message(marker), end), pass],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "pending" } } },
+      { type: "tool_use", part: { type: "tool", callID: "b", state: { status: "completed" } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "completed" } } },
+      { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "pending" } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", callID: "a", state: { status: "unknown" } } }, message(marker), end), inconclusive],
     [stream(start, message(marker), tool, end), inconclusive],
     [stream(start, message(marker), start, end), inconclusive],
     [stream(start, message(marker), message("unavailable"), end), inconclusive],
