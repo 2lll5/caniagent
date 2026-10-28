@@ -9,7 +9,7 @@ import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const SKILL_PROBE_SPECS = {
   codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
-  "claude-code": { projectPath: [".claude", "skills"], userPath: [".claude", "skills"], versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
+  "claude-code": { projectPath: [".claude", "skills"], userPath: [".claude", "skills"], versionArgs: ["--version"], outputFormat: "claude-result-json", args: (prompt) => ["-p", prompt, "--output-format", "json"] },
   "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], args: (prompt) => ["--approval-mode=yolo", "-p", prompt] },
   opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
 };
@@ -43,17 +43,28 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
   return { workspace, skillDir, skillName, marker, discoveryPath };
 }
 
-export function classifySkillOutput(output, marker, executionOutcome = "success") {
-  if (executionOutcome !== "success" || !marker) return { discovered: false, verdict: "inconclusive" };
-  // A tool may echo a standalone marker before the model responds.
-  // Require a terminal stdout marker; this is still provisional, not provenance.
+export function classifySkillOutput(output, marker, executionOutcome = "success", outputFormat = "text") {
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  if (executionOutcome !== "success" || !marker) return inconclusive;
+  if (outputFormat === "claude-result-json") {
+    let value;
+    try { value = JSON.parse(output); } catch { return inconclusive; }
+    // Only the terminal Claude result can establish a model reply.
+    // Tool/prompt echoes and error results are never discovery evidence.
+    const finalReply = value && typeof value === "object" && !Array.isArray(value) &&
+      value.type === "result" && value.is_error !== true &&
+      !(typeof value.subtype === "string" && value.subtype.startsWith("error_")) &&
+      typeof value.result === "string" ? value.result : undefined;
+    return finalReply?.trim() === marker ? { discovered: true, verdict: "pass" } : inconclusive;
+  }
+  if (outputFormat !== "text") return inconclusive;
+  // Other CLIs still have only provisional terminal-line evidence.
   return output.trimEnd().split(/\r?\n/).at(-1)?.trim() === marker
-    ? { discovered: true, verdict: "pass" }
-    : { discovered: false, verdict: "inconclusive" };
+    ? { discovered: true, verdict: "pass" } : inconclusive;
 }
 
 // Classify the original stdout before redaction/truncation; never persist it.
-export function captureSkillProbeResult(result, command, args, marker) {
+export function captureSkillProbeResult(result, command, args, marker, outputFormat = "text") {
   const outcome = classifyProbeExecution(result);
   return {
     execution: {
@@ -65,13 +76,13 @@ export function captureSkillProbeResult(result, command, args, marker) {
       stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
       error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
     },
-    markerVerdict: marker === undefined ? undefined : classifySkillOutput(result.stdout ?? "", marker, outcome)
+    markerVerdict: marker === undefined ? undefined : classifySkillOutput(result.stdout ?? "", marker, outcome, outputFormat)
   };
 }
 
-export function runSkillProbe(command, args, { cwd, env, timeout = 60000, marker } = {}) {
+export function runSkillProbe(command, args, { cwd, env, timeout = 60000, marker, outputFormat = "text" } = {}) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32", maxBuffer: 8 * 1024 * 1024 });
-  return captureSkillProbeResult(result, command, args, marker);
+  return captureSkillProbeResult(result, command, args, marker, outputFormat);
 }
 
 
@@ -95,7 +106,7 @@ function main() {
         const fixture = createSkillFixture(temp, agent.id, scope);
         const { execution: version } = runSkillProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
         const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
-        const { execution, markerVerdict } = runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker });
+        const { execution, markerVerdict } = runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker, outputFormat: spec.outputFormat });
         results.push({
           agent: agent.id,
           observedAt,

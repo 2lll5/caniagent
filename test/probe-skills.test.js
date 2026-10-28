@@ -35,6 +35,40 @@ test("Codex skill probe runs from a non-Git fixture with an explicit bypass", ()
   }
 });
 
+
+test("Claude Code skill probe requests a structured final result", () => {
+  assert.equal(SKILL_PROBE_SPECS["claude-code"].outputFormat, "claude-result-json");
+  assert.deepEqual(SKILL_PROBE_SPECS["claude-code"].args("probe"), [
+    "-p", "probe", "--output-format", "json"
+  ]);
+});
+
+test("Claude Code skill marker requires the final JSON model result, not tool echoes", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const pass = { discovered: true, verdict: "pass" };
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const classify = (value) => classifySkillOutput(
+    typeof value === "string" ? value : JSON.stringify(value),
+    marker, "success", "claude-result-json"
+  );
+  assert.deepEqual(classify({ type: "result", subtype: "success", is_error: false, result: marker }), pass);
+  assert.deepEqual(classify({ type: "result", result: ` ${marker}\\n` }), pass);
+  assert.deepEqual(classify({ type: "result", result: "Skill unavailable", tool_output: marker }), inconclusive);
+  assert.deepEqual(classify({ type: "assistant", message: { content: [{ type: "text", text: marker }] } }), inconclusive);
+  assert.deepEqual(classify({ type: "result", result: "Skill unavailable", prompt: marker }), inconclusive);
+  assert.deepEqual(classify({ type: "result", result: marker, is_error: true }), inconclusive);
+  assert.deepEqual(classify({ type: "result", result: marker, subtype: "error_max_turns" }), inconclusive);
+  assert.deepEqual(classify(marker), inconclusive);
+  assert.deepEqual(classify("not json"), inconclusive);
+  assert.deepEqual(classifySkillOutput(JSON.stringify({ type: "result", result: marker }), marker, "timeout", "claude-result-json"), inconclusive);
+  assert.deepEqual(classifySkillOutput(marker, marker, "success", "unknown-format"), inconclusive);
+  const { markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: JSON.stringify({ type: "result", result: "unavailable", tool_output: marker }), stderr: "" },
+    "fake-claude", ["-p", "probe"], marker, "claude-result-json"
+  );
+  assert.deepEqual(markerVerdict, inconclusive);
+});
+
 test("Gemini skill probe auto-approves activation in non-interactive mode", () => {
   assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].args("probe"), ["--approval-mode=yolo", "-p", "probe"]);
 });
