@@ -88,6 +88,9 @@ test("OpenCode skill marker requires final model text, not a tool or prior step"
   const cases = [
     [stream(start, message(marker), end), pass],
     [stream(start, tool, message(marker), end), pass],
+    [stream(start, message(marker), { type: "reasoning", part: { type: "reasoning", text: "continuing" } }), inconclusive],
+    [stream(start, message(marker), { type: "future_tool_event", part: { type: "tool" } }), inconclusive],
+    [stream(start, message(marker), end, { type: "unexpected_terminal" }), inconclusive],
     [stream(start, message(marker)), pass],
     [stream(start, tool, message("not loaded"), end), inconclusive],
     [stream(start, message(marker), tool, end), inconclusive],

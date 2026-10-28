@@ -84,6 +84,11 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       event.part?.type === "step-finish");
     // OpenCode v2 may omit a final step_finish; an observed finish must be stop.
     if (finishIndex > replyIndex && events[finishIndex].part.reason !== "stop") return inconclusive;
+    // A clean exit may omit step_finish, but any other event after the
+    // final text makes its provenance ambiguous; fail closed.
+    if (events.slice(replyIndex + 1).some((event) =>
+      event.type !== "step_finish" || event.part?.type !== "step-finish" ||
+      event.part.reason !== "stop")) return inconclusive;
     return events[replyIndex].part.text === marker
       ? { discovered: true, verdict: "pass" } : inconclusive;
   }
