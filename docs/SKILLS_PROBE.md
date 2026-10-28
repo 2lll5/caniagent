@@ -37,7 +37,7 @@ Each result records the agent version, OS/platform metadata, exact redacted comm
 
 The child-process capture has a bounded 8 MiB buffer rather than Node.js's default 1 MiB, so long but successful output can still be classified. Buffer overflow remains a subprocess error and therefore `inconclusive`; the full capture is never persisted.
 
-The verdict examines the complete, original **stdout** in memory before evidence redaction and truncation. Only redacted/truncated stdout and stderr are serialized; a marker appearing **only in stderr diagnostics** cannot produce `pass`. This avoids false negatives when a valid marker appears beyond the 12,000-character evidence limit, without retaining raw output in artifacts.
+The verdict examines the complete, original **stdout** in memory before evidence redaction and truncation. Only redacted/truncated stdout and stderr are serialized; a marker appearing **only in stderr diagnostics** cannot produce `pass`. The per-fixture random challenge is replaced with `<SKILL_MARKER>` in serialized command, stdout, stderr, and error text **before** truncation, without changing classification of the raw in-memory stdout. This avoids false negatives when a valid marker appears beyond the 12,000-character evidence limit, without retaining raw output in artifacts.
 
 For **Claude Code**, the probe requests `--output-format json` and accepts a marker only from a successful top-level `type: "result"` envelope whose `result` text matches exactly. Markers in tool output, prompt echoes, metadata, malformed JSON, or error results remain `inconclusive`.
 

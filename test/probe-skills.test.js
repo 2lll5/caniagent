@@ -346,6 +346,28 @@ test("skill verdict uses full raw stdout while saved evidence stays truncated", 
   assert.equal(JSON.stringify({ execution, markerVerdict }).includes(marker), false);
 });
 
+test("random skill challenge is redacted from saved evidence without changing the raw verdict", () => {
+  const marker = `CANIAGENT_SKILL_${"A".repeat(32)}`;
+  const stdout = JSON.stringify({ type: "result", result: marker, tool_echo: marker });
+  const { execution, markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout, stderr: `diagnostic: ${marker}` },
+    "fake-claude", ["--marker", marker], marker, "claude-result-json"
+  );
+  assert.deepEqual(markerVerdict, { discovered: true, verdict: "pass" });
+  assert.equal(JSON.stringify(execution).includes(marker), false);
+  assert.match(execution.stdout, /<SKILL_MARKER>/);
+  assert.match(execution.stderr, /<SKILL_MARKER>/);
+  assert.match(execution.command, /<SKILL_MARKER>/);
+
+  const failed = captureSkillProbeResult(
+    { status: null, signal: null, stdout: "", stderr: "", error: { code: "EACCES", message: `error ${marker}` } },
+    "fake-claude", [], marker, "claude-result-json"
+  );
+  assert.equal(failed.execution.error.includes(marker), false);
+  assert.match(failed.execution.error, /<SKILL_MARKER>/);
+  assert.deepEqual(failed.markerVerdict, { discovered: false, verdict: "inconclusive" });
+});
+
 test("skill marker in diagnostics alone cannot produce a pass", () => {
   const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
   const { execution, markerVerdict } = captureSkillProbeResult(

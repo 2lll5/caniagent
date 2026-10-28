@@ -168,17 +168,26 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
 }
 
 // Classify the original stdout before redaction/truncation; never persist it.
+// The random fixture challenge is evidence-only: do not serialize it even if
+// an agent echoes SKILL.md in stdout, stderr, its command, or diagnostics.
+function redactSkillMarker(value, marker) {
+  const text = String(value ?? "");
+  return typeof marker === "string" && marker.length > 0
+    ? text.replaceAll(marker, "<SKILL_MARKER>")
+    : text;
+}
+
 export function captureSkillProbeResult(result, command, args, marker, outputFormat = "text") {
   const outcome = classifyProbeExecution(result);
   return {
     execution: {
-      command: redactProbeOutput([command, ...args].join(" ")),
+      command: redactProbeOutput(redactSkillMarker([command, ...args].join(" "), marker)),
       outcome,
       status: result.status,
       signal: result.signal,
-      stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
-      stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
-      error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
+      stdout: redactAndTruncateProbeOutput(redactSkillMarker(result.stdout, marker)),
+      stderr: redactAndTruncateProbeOutput(redactSkillMarker(result.stderr, marker)),
+      error: result.error?.message ? redactProbeOutput(redactSkillMarker(result.error.message, marker)) : undefined
     },
     markerVerdict: marker === undefined ? undefined : classifySkillOutput(result.stdout ?? "", marker, outcome, outputFormat)
   };
