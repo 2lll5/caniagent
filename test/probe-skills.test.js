@@ -52,7 +52,7 @@ test("Claude Code skill marker requires the final JSON model result, not tool ec
     marker, "success", "claude-result-json"
   );
   assert.deepEqual(classify({ type: "result", subtype: "success", is_error: false, result: marker }), pass);
-  assert.deepEqual(classify({ type: "result", result: ` ${marker}\\n` }), pass);
+  assert.deepEqual(classify({ type: "result", result: ` ${marker} ` }), pass);
   assert.deepEqual(classify({ type: "result", result: "Skill unavailable", tool_output: marker }), inconclusive);
   assert.deepEqual(classify({ type: "assistant", message: { content: [{ type: "text", text: marker }] } }), inconclusive);
   assert.deepEqual(classify({ type: "result", result: "Skill unavailable", prompt: marker }), inconclusive);
