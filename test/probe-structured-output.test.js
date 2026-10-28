@@ -7,7 +7,7 @@ import { STRUCTURED_OUTPUT_SPECS, classifyStructuredOutput, parseStructuredOutpu
 
 test("structured-output adapters encode documented machine-readable modes", () => {
   assert.equal(STRUCTURED_OUTPUT_SPECS.codex.format, "jsonl");
-  assert.deepEqual(STRUCTURED_OUTPUT_SPECS.codex.args("marker"), ["exec", "--ephemeral", "--json", "marker"]);
+  assert.deepEqual(STRUCTURED_OUTPUT_SPECS.codex.args("marker"), ["exec", "--ephemeral", "--skip-git-repo-check", "--json", "marker"]);
   assert.equal(STRUCTURED_OUTPUT_SPECS["claude-code"].format, "json");
   assert.deepEqual(STRUCTURED_OUTPUT_SPECS["claude-code"].args("marker"), ["-p", "marker", "--output-format", "json"]);
   assert.equal(STRUCTURED_OUTPUT_SPECS["gemini-cli"].format, "json");
@@ -43,6 +43,61 @@ test("marker must be observed before structured output passes", () => {
     markerObserved: false,
     verdict: "inconclusive"
   });
+});
+
+test("structured marker requires an exact response without surrounding whitespace", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const adapters = [
+    ["codex", "jsonl", (text) => [
+      { type: "item.completed", item: { type: "agent_message", text } },
+      { type: "turn.completed" }
+    ]],
+    ["opencode", "jsonl", (text) => [{ type: "text", part: { type: "text", text } }]],
+    ["claude-code", "json", (text) => [{ type: "result", result: text }]],
+    ["gemini-cli", "json", (text) => [{ response: text }]]
+  ];
+  for (const [agent, format, eventsFor] of adapters) {
+    for (const [label, response, expected] of [
+      ["exact", marker, "pass"],
+      ["leading space", " " + marker, "inconclusive"],
+      ["trailing space", marker + " ", "inconclusive"],
+      ["leading newline", "\n" + marker, "inconclusive"],
+      ["trailing newline", marker + "\r\n", "inconclusive"]
+    ]) {
+      const events = eventsFor(response);
+      const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+      assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict,
+        expected, `${agent}: ${label}`);
+    }
+  }
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker + "\n" }), "json", marker).verdict,
+    "inconclusive", "direct parser fallback");
+});
+
+test("missing or blank markers cannot establish structured-output success", () => {
+  const outputs = ['{"type":"request","input":"synthetic"}', '{"response":""}'];
+  for (const marker of [undefined, "", " "]) {
+    for (const output of outputs) {
+      assert.deepEqual(classifyStructuredOutput(output, "json", marker, "success", "gemini-cli"), {
+        parseable: true, markerObserved: false, verdict: "inconclusive"
+      });
+    }
+  }
+});
+
+test("direct-parser fallback rejects non-null Gemini error envelopes", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const value of [
+    { response: marker, error: { message: "synthetic failure" } },
+    { type: "result", response: marker, error: "synthetic failure" }
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  for (const value of [{ response: marker, error: null }, { response: marker }]) {
+    assert.equal(classifyStructuredOutput(JSON.stringify(value), "json", marker).verdict, "pass");
+  }
 });
 
 test("runtime failures stay inconclusive even if output resembles evidence", () => {
@@ -108,6 +163,227 @@ test("structured probe classifies raw stdout without persisting it", () => {
   }
 });
 
+test("prompt echoes and nested metadata cannot supply response provenance", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    [JSON.stringify({ type: "request", prompt: marker, response: marker }), "json"],
+    [JSON.stringify({ metadata: { prompt: marker, response: marker } }), "json"],
+    [[{ type: "input", text: marker }, { type: "result", text: "other" }].map(JSON.stringify).join("\n"), "jsonl"],
+    [JSON.stringify({ response: `I was asked to say ${marker}, but did not` }), "json"]
+  ];
+  for (const [output, format] of cases) {
+    assert.deepEqual(classifyStructuredOutput(output, format, marker), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+});
+
+test("adapter-specific model response fields are the only positive evidence", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", { type: "item.completed", item: { type: "agent_message", text: marker } }],
+    ["opencode", "jsonl", { type: "text", part: { type: "text", text: marker } }],
+    ["claude-code", "json", { type: "result", result: marker }],
+    ["gemini-cli", "json", { response: marker }]
+  ];
+  for (const [agent, format, response] of cases) {
+    const output = agent === "codex"
+      ? [response, { type: "turn.completed" }].map(JSON.stringify).join("\n")
+      : JSON.stringify(response);
+    assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict, "pass", agent);
+  }
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "item.completed", item: { type: "user_message", text: marker } }), "jsonl", marker, "success", "codex").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "input", part: { type: "text", text: marker } }), "jsonl", marker, "success", "opencode").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", is_error: true, result: marker }), "json", marker, "success", "claude-code").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "request", response: marker }), "json", marker, "success", "gemini-cli").verdict, "inconclusive");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "unknown", debug: marker }), "json", marker, "success", "gemini-cli").verdict, "inconclusive");
+});
+
+test("unknown diagnostic events and explicit error results cannot establish marker provenance", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const [agent, value] of [
+    [undefined, { type: "diagnostic", response: marker }],
+    [undefined, { type: "result", is_error: true, result: marker }],
+    ["gemini-cli", { type: "result", is_error: true, response: marker }]
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  // Existing direct-parser callers retain supported positive response envelopes.
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", result: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker, "success", "gemini-cli").verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: marker } }), "jsonl", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "text", part: { type: "text", text: marker } }), "jsonl", marker).verdict, "pass");
+});
+
+test("real child-process prompt echo stays inconclusive while a Codex agent message passes", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-structured-provenance-"));
+  try {
+    for (const [name, events, expected] of [
+      ["echo", [{ type: "input", text: marker }, { type: "turn.completed", usage: {} }], "inconclusive"],
+      ["answer", [{ type: "input", text: marker }, { type: "item.completed", item: { type: "agent_message", text: marker } }, { type: "turn.completed" }], "pass"]
+    ]) {
+      const fixture = path.join(dir, `${name}.cjs`);
+      fs.writeFileSync(fixture, `process.stdout.write(${JSON.stringify(events.map(JSON.stringify).join("\n"))});\n`);
+      const { execution, ...classification } = runStructuredOutput(process.execPath, [fixture], {
+        format: "jsonl", marker, agent: "codex"
+      });
+      assert.equal(execution.outcome, "success", name);
+      assert.equal(classification.verdict, expected, name);
+      assert.equal(Object.hasOwn(execution, "rawStdout"), false);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("explicit failure events invalidate earlier response markers", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "turn.failed", error: { message: "synthetic failure" } }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "error", error: { message: "synthetic failure" } }
+    ]],
+    ["claude-code", "json", [
+      { type: "result", subtype: "error_max_turns", is_error: false, result: marker }
+    ]],
+    ["gemini-cli", "json", [
+      { type: "error", response: marker }
+    ]],
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "diagnostic", is_error: true }
+    ]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.deepEqual(classifyStructuredOutput(output, format, marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    }, agent);
+  }
+});
+
+test("Gemini JSON error envelopes veto matching responses even on a zero exit", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  for (const value of [
+    { response: marker, error: { type: "FatalAuthenticationError", message: "synthetic failure" } },
+    { type: "result", response: marker, error: { type: "RuntimeError", message: "synthetic failure" } }
+  ]) {
+    assert.deepEqual(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", "gemini-cli"), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    });
+  }
+  for (const value of [
+    { response: marker, error: null },
+    { response: marker, stats: { models: {} } }
+  ]) {
+    assert.equal(classifyStructuredOutput(JSON.stringify(value), "json", marker, "success", "gemini-cli").verdict, "pass");
+  }
+});
+
+test("terminal failures invalidate markers across adapters and direct parsing", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "error", message: "synthetic failure" }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "turn.failed", error: { message: "synthetic failure" } }
+    ]],
+    [undefined, "jsonl", [
+      { type: "result", text: marker },
+      { type: "error", message: "synthetic failure" }
+    ]],
+    [undefined, "json", [
+      { type: "result", subtype: "error_max_turns", result: marker }
+    ]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.deepEqual(classifyStructuredOutput(output, format, marker, "success", agent), {
+      parseable: true, markerObserved: false, verdict: "inconclusive"
+    }, agent ?? "direct-parser");
+  }
+  // Non-failure events and legitimate responses must still pass.
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", result: marker }), "json", marker).verdict, "pass");
+  assert.equal(classifyStructuredOutput(JSON.stringify({ type: "result", subtype: "success", result: marker }), "json", marker, "success", "claude-code").verdict, "pass");
+  assert.equal(classifyStructuredOutput([
+    { type: "item.completed", item: { type: "agent_message", text: marker } },
+    { type: "turn.completed" }
+  ].map(JSON.stringify).join("\n"), "jsonl", marker, "success", "codex").verdict, "pass");
+});
+
+test("known successful responses remain valid and unknown adapters fail closed", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const cases = [
+    ["codex", "jsonl", [
+      { type: "item.completed", item: { type: "agent_message", text: marker } },
+      { type: "turn.completed" }
+    ]],
+    ["opencode", "jsonl", [
+      { type: "text", part: { type: "text", text: marker } },
+      { type: "step_finish" }
+    ]],
+    ["claude-code", "json", [{ type: "result", subtype: "success", result: marker }]],
+    ["gemini-cli", "json", [{ response: marker }]]
+  ];
+  for (const [agent, format, events] of cases) {
+    const output = format === "jsonl" ? events.map(JSON.stringify).join("\n") : JSON.stringify(events[0]);
+    assert.equal(classifyStructuredOutput(output, format, marker, "success", agent).verdict, "pass", agent);
+  }
+  assert.deepEqual(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker, "success", "future-agent"), {
+    parseable: true, markerObserved: false, verdict: "inconclusive"
+  });
+  assert.equal(classifyStructuredOutput(JSON.stringify({ response: marker }), "json", marker).verdict, "pass");
+});
+
+test("only the last model response can establish the structured marker", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const codexReply = (text) => ({ type: "item.completed", item: { type: "agent_message", text } });
+  const openCodeReply = (text) => ({ type: "text", part: { type: "text", text } });
+  const cases = [
+    ["codex", [codexReply(marker), codexReply("not the marker")], "inconclusive"],
+    ["codex", [codexReply("draft"), codexReply(marker)], "pass"],
+    ["codex", [codexReply(marker), { type: "input", text: "not the marker" }], "pass"],
+    ["opencode", [openCodeReply(marker), openCodeReply("additional text")], "inconclusive"],
+    ["opencode", [openCodeReply("draft"), openCodeReply(marker)], "pass"],
+    [undefined, [{ type: "result", text: marker }, { type: "result", text: "different" }], "inconclusive"]
+  ];
+  for (const [agent, events, verdict] of cases) {
+    const streamEvents = agent === "codex" ? [...events, { type: "turn.completed" }] : events;
+    const stream = streamEvents.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(stream, "jsonl", marker, "success", agent).verdict,
+      verdict, agent ?? "direct-parser");
+  }
+});
+
+test("Codex requires a completed turn after its final model reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const cases = [
+    [[reply], "inconclusive"],
+    [[{ type: "turn.started" }, reply], "inconclusive"],
+    [[{ type: "turn.completed" }, { type: "turn.started" }, reply], "inconclusive"],
+    [[reply, { type: "turn.completed" }, { type: "turn.started" }], "inconclusive"],
+    [[reply, { type: "turn.completed" }, { type: "turn.started" }, { type: "turn.completed" }], "inconclusive"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }, { type: "turn.started" }, { type: "turn.completed" }], "inconclusive"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }, { type: "turn.started" }, reply, { type: "turn.completed" }], "pass"],
+    [[{ type: "turn.started" }, reply, { type: "turn.completed" }], "pass"]
+  ];
+  for (const [events, expected] of cases) {
+    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\n"), "jsonl", marker, "success", "codex").verdict, expected);
+  }
+});
+
 // The capture cap must fail closed even when a valid marker is present in
 // the output collected before Node reports ENOBUFS.
 test("structured probe treats stdout exceeding its bounded capture as inconclusive", () => {
@@ -129,5 +405,116 @@ test("structured probe treats stdout exceeding its bounded capture as inconclusi
     assert.equal(Object.hasOwn(execution, "rawStdout"), false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("Codex marker must follow all tool activity in the completed turn", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const tool = (type, event = "item.completed") => ({ type: event, item: { id: "tool-1", type } });
+  const cases = [
+    ["later command started", [reply, tool("command_execution", "item.started")], "inconclusive"],
+    ["later command completed", [reply, tool("command_execution")], "inconclusive"],
+    ["later command updated", [reply, tool("command_execution", "item.updated")], "inconclusive"],
+    ["later MCP call updated", [reply, tool("mcp_tool_call", "item.updated")], "inconclusive"],
+    ["later MCP call", [reply, tool("mcp_tool_call")], "inconclusive"],
+    ["later file change", [reply, tool("file_change")], "inconclusive"],
+    ["later web search", [reply, tool("web_search")], "inconclusive"],
+    ["later collaborator call", [reply, tool("collab_tool_call")], "inconclusive"],
+    ["tool before final reply", [tool("command_execution"), reply], "pass"],
+    ["tool update before final reply", [tool("command_execution", "item.updated"), reply], "pass"],
+    ["later diagnostic only", [reply, { type: "diagnostic", message: "synthetic" }], "pass"],
+    ["later reasoning only", [reply, { type: "item.completed", item: { type: "reasoning", text: "synthetic" } }], "pass"],
+    ["later reasoning update only", [reply, { type: "item.updated", item: { type: "reasoning", text: "synthetic" } }], "pass"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const stream = [{ type: "turn.started" }, ...events, { type: "turn.completed" }]
+      .map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(stream, "jsonl", marker, "success", "codex").verdict,
+      expected, label);
+  }
+});
+
+test("OpenCode nonterminal step_finish cannot certify a prior marker", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const finish = (reason) => ({ type: "step_finish", part: { type: "step-finish", reason } });
+  const cases = [
+    ["missing final step_finish (upstream v2 behavior)", [reply(marker)], "pass"],
+    ["explicit stop", [reply(marker), finish("stop")], "pass"],
+    ["tool call still pending", [reply(marker), finish("tool-calls")], "inconclusive"],
+    ["generation truncated", [reply(marker), finish("length")], "inconclusive"],
+    ["unknown finish reason", [reply(marker), finish("unknown")], "inconclusive"],
+    ["later final text without step_finish", [reply("draft"), finish("tool-calls"), reply(marker)], "pass"],
+    ["later final text with stop", [reply("draft"), finish("tool-calls"), reply(marker), finish("stop")], "pass"],
+    ["later nonmatching reply", [reply(marker), finish("tool-calls"), reply("other")], "inconclusive"]
+  ];
+  for (const [name, events, expected] of cases) {
+    const output = events.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "opencode").verdict,
+      expected, name);
+  }
+});
+
+test("OpenCode cannot reuse a marker when a later step starts without a reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const start = () => ({ type: "step_start", part: { type: "step-start" } });
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const finish = (reason) => ({ type: "step_finish", part: { type: "step-finish", reason } });
+  const cases = [
+    ["new step after a stopped reply", [start(), reply(marker), finish("stop"), start()], "inconclusive"],
+    ["new step after a reply with missing finish", [start(), reply(marker), start()], "inconclusive"],
+    ["single step with omitted final finish", [start(), reply(marker)], "pass"],
+    ["new step replies with marker and omits final finish", [start(), reply("draft"), finish("tool-calls"), start(), reply(marker)], "pass"],
+    ["new step replies with different text", [start(), reply(marker), finish("stop"), start(), reply("other")], "inconclusive"]
+  ];
+  for (const [name, events, expected] of cases) {
+    assert.equal(classifyStructuredOutput(events.map(JSON.stringify).join("\n"), "jsonl", marker, "success", "opencode").verdict,
+      expected, name);
+  }
+});
+
+test("OpenCode tool_use after marker requires a later model reply", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const start = { type: "step_start", part: { type: "step-start" } };
+  const reply = (text) => ({ type: "text", part: { type: "text", text } });
+  const tool = (name = "bash") => ({
+    type: "tool_use", part: { type: "tool", tool: name, state: { status: "completed" } }
+  });
+  const stop = { type: "step_finish", part: { type: "step-finish", reason: "stop" } };
+  const cases = [
+    ["tool after marker, missing finish", [start, reply(marker), tool()], "inconclusive"],
+    ["tool after marker, explicit stop", [start, reply(marker), tool("read"), stop], "inconclusive"],
+    ["tool before final marker", [start, tool(), reply(marker)], "pass"],
+    ["model replies after later tool", [start, reply("draft"), tool(), reply(marker)], "pass"],
+    ["later diagnostic only", [start, reply(marker), { type: "reasoning", part: { type: "reasoning", text: "synthetic" } }], "pass"],
+    ["later nonmatching reply", [start, reply(marker), tool(), reply("other")], "inconclusive"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const output = events.map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "opencode").verdict,
+      expected, label);
+  }
+});
+
+test("Codex error items after a marker require a newer model response", () => {
+  const marker = "CANIAGENT_STRUCTURED_TEST_MARKER";
+  const reply = { type: "item.completed", item: { type: "agent_message", text: marker } };
+  const errorItem = (type = "item.completed") => ({
+    type, item: { type: "error", message: "synthetic non-fatal diagnostic" }
+  });
+  const reasoning = { type: "item.completed", item: { type: "reasoning", text: "synthetic" } };
+  const cases = [
+    ["completed error after marker", [reply, errorItem()], "inconclusive"],
+    ["updated error after marker", [reply, errorItem("item.updated")], "inconclusive"],
+    ["started error after marker", [reply, errorItem("item.started")], "inconclusive"],
+    ["error before final reply", [errorItem(), reply], "pass"],
+    ["new reply after error", [reply, errorItem(), reply], "pass"],
+    ["reasoning after marker", [reply, reasoning], "pass"]
+  ];
+  for (const [label, events, expected] of cases) {
+    const output = [...events, { type: "turn.completed" }].map(JSON.stringify).join("\n");
+    assert.equal(classifyStructuredOutput(output, "jsonl", marker, "success", "codex").verdict,
+      expected, label);
   }
 });
