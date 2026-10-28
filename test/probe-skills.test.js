@@ -69,8 +69,37 @@ test("Claude Code skill marker requires the final JSON model result, not tool ec
   assert.deepEqual(markerVerdict, inconclusive);
 });
 
-test("Gemini skill probe auto-approves activation in non-interactive mode", () => {
-  assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].args("probe"), ["--approval-mode=yolo", "-p", "probe"]);
+test("Gemini skill probe requests a structured final response in non-interactive mode", () => {
+  assert.equal(SKILL_PROBE_SPECS["gemini-cli"].outputFormat, "gemini-result-json");
+  assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].args("probe"), [
+    "--approval-mode=yolo", "-p", "probe", "--output-format", "json"
+  ]);
+});
+
+test("Gemini skill verdict uses only the successful final JSON response", () => {
+  const marker = "CANIAGENT_SKILL_GEMINI_CLI_USER";
+  const pass = { discovered: true, verdict: "pass" };
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const classify = (value) => classifySkillOutput(
+    typeof value === "string" ? value : JSON.stringify(value),
+    marker, "success", "gemini-result-json"
+  );
+  assert.deepEqual(classify({ response: marker, stats: { tools: { totalCalls: 1 } } }), pass);
+  assert.deepEqual(classify({ response: ` ${marker} `, error: null }), pass);
+  assert.deepEqual(classify({ type: "result", response: marker }), pass);
+  assert.deepEqual(classify({ response: "Skill unavailable", tool_output: marker }), inconclusive);
+  assert.deepEqual(classify({ response: marker, error: { type: "FatalToolExecutionError" } }), inconclusive);
+  assert.deepEqual(classify({ response: marker, is_error: true }), inconclusive);
+  assert.deepEqual(classify({ type: "tool_result", response: marker }), inconclusive);
+  assert.deepEqual(classify([{ response: marker }]), inconclusive);
+  assert.deepEqual(classify(marker), inconclusive);
+  assert.deepEqual(classify("not json"), inconclusive);
+  assert.deepEqual(classifySkillOutput(JSON.stringify({ response: marker }), marker, "timeout", "gemini-result-json"), inconclusive);
+  const { markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: JSON.stringify({ response: "unavailable", tool_output: marker }), stderr: "" },
+    "fake-gemini", ["-p", "probe"], marker, "gemini-result-json"
+  );
+  assert.deepEqual(markerVerdict, inconclusive);
 });
 
 test("project skill fixture contains a deterministic marker only inside SKILL.md", () => {

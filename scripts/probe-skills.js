@@ -10,7 +10,7 @@ import { isolatedProbeEnvironment } from "./probe-env.js";
 export const SKILL_PROBE_SPECS = {
   codex: { projectPath: [".agents", "skills"], userPath: [".agents", "skills"], versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
   "claude-code": { projectPath: [".claude", "skills"], userPath: [".claude", "skills"], versionArgs: ["--version"], outputFormat: "claude-result-json", args: (prompt) => ["-p", prompt, "--output-format", "json"] },
-  "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], args: (prompt) => ["--approval-mode=yolo", "-p", prompt] },
+  "gemini-cli": { projectPath: [".gemini", "skills"], userPath: [".gemini", "skills"], versionArgs: ["--version"], outputFormat: "gemini-result-json", args: (prompt) => ["--approval-mode=yolo", "-p", prompt, "--output-format", "json"] },
   opencode: { projectPath: [".opencode", "skills"], userPath: [".config", "opencode", "skills"], versionArgs: ["--version"], args: (prompt) => ["run", prompt] }
 };
 
@@ -55,6 +55,16 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       value.type === "result" && value.is_error !== true &&
       !(typeof value.subtype === "string" && value.subtype.startsWith("error_")) &&
       typeof value.result === "string" ? value.result : undefined;
+    return finalReply?.trim() === marker ? { discovered: true, verdict: "pass" } : inconclusive;
+  }
+  if (outputFormat === "gemini-result-json") {
+    let value;
+    try { value = JSON.parse(output); } catch { return inconclusive; }
+    // Gemini headless JSON's top-level response is the final model answer.
+    // Reject errors, tool echoes, and unrelated event envelopes.
+    const finalReply = value && typeof value === "object" && !Array.isArray(value) &&
+      (!value.type || value.type === "result") && value.is_error !== true &&
+      value.error == null && typeof value.response === "string" ? value.response : undefined;
     return finalReply?.trim() === marker ? { discovered: true, verdict: "pass" } : inconclusive;
   }
   if (outputFormat !== "text") return inconclusive;
