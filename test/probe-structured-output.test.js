@@ -7,7 +7,7 @@ import { STRUCTURED_OUTPUT_SPECS, classifyStructuredOutput, parseStructuredOutpu
 
 test("structured-output adapters encode documented machine-readable modes", () => {
   assert.equal(STRUCTURED_OUTPUT_SPECS.codex.format, "jsonl");
-  assert.deepEqual(STRUCTURED_OUTPUT_SPECS.codex.args("marker"), ["exec", "--ephemeral", "--json", "marker"]);
+  assert.deepEqual(STRUCTURED_OUTPUT_SPECS.codex.args("marker"), ["exec", "--ephemeral", "--skip-git-repo-check", "--json", "marker"]);
   assert.equal(STRUCTURED_OUTPUT_SPECS["claude-code"].format, "json");
   assert.deepEqual(STRUCTURED_OUTPUT_SPECS["claude-code"].args("marker"), ["-p", "marker", "--output-format", "json"]);
   assert.equal(STRUCTURED_OUTPUT_SPECS["gemini-cli"].format, "json");

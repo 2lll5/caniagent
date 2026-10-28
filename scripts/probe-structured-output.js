@@ -8,7 +8,7 @@ import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput
 import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const STRUCTURED_OUTPUT_SPECS = {
-  codex: { format: "jsonl", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--json", prompt] },
+  codex: { format: "jsonl", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", "--json", prompt] },
   "claude-code": { format: "json", versionArgs: ["--version"], args: (prompt) => ["-p", prompt, "--output-format", "json"] },
   "gemini-cli": { format: "json", versionArgs: ["--version"], args: (prompt) => ["-p", prompt, "--output-format", "json"] },
   opencode: { format: "jsonl", versionArgs: ["--version"], args: (prompt) => ["run", "--format", "json", prompt] }
