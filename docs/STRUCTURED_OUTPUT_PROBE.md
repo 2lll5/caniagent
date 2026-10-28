@@ -7,11 +7,11 @@ The probe invokes each agent's documented non-interactive structured-output mode
 | Agent | Invocation mode | Expected wire format |
 | --- | --- | --- |
 | Codex | `codex exec --ephemeral --skip-git-repo-check --json` | JSON Lines events |
-
-The Codex probe uses a disposable workspace with no `.git` directory. `--skip-git-repo-check` bypasses only Codex CLI's Git-repository prerequisite for this isolated behavior fixture; it does not relax the structured-output parser, authentication, or process isolation limits.
 | Claude Code | `claude -p ... --output-format json` | JSON document |
 | Gemini CLI | `gemini -p ... --output-format json` | JSON document |
 | OpenCode | `opencode run --format json` | JSON Lines events |
+
+The Codex probe uses a disposable workspace with no `.git` directory. `--skip-git-repo-check` bypasses only Codex CLI's Git-repository prerequisite for this isolated behavior fixture; it does not relax the structured-output parser, authentication, or process isolation limits.
 
 Each run uses a temporary workspace and redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows AppData, and XDG config/data/state/cache paths into its temporary home. Inherited `NODE_OPTIONS` is removed, but authentication, proxy, and other environment variables may remain. This is **not a filesystem or process sandbox**. Temporary fixtures are removed after each agent run.
 
