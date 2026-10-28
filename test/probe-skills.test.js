@@ -22,7 +22,7 @@ test("skill probe adapters only encode documented isolated user discovery conven
 
 test("Codex skill probe runs from a non-Git fixture with an explicit bypass", () => {
   assert.deepEqual(SKILL_PROBE_SPECS.codex.args("probe"), [
-    "exec", "--ephemeral", "--skip-git-repo-check", "probe"
+    "exec", "--ephemeral", "--skip-git-repo-check", "--json", "probe"
   ]);
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-codex-skill-git-check-test-"));
   try {
@@ -35,6 +35,39 @@ test("Codex skill probe runs from a non-Git fixture with an explicit bypass", ()
   }
 });
 
+
+test("Codex skill probe requires a completed JSONL model reply, not a tool echo", () => {
+  assert.equal(SKILL_PROBE_SPECS.codex.outputFormat, "codex-result-jsonl");
+  const marker = "CANIAGENT_SKILL_CODEX_USER";
+  const pass = { discovered: true, verdict: "pass" };
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const stream = (...events) => events.map((event) => JSON.stringify(event)).join("\n");
+  const start = { type: "turn.started" };
+  const end = { type: "turn.completed" };
+  const message = (text) => ({ type: "item.completed", item: { type: "agent_message", text } });
+  const tool = { type: "item.completed", item: { type: "command_execution", aggregated_output: marker } };
+  const classify = (stdout, outcome = "success") =>
+    classifySkillOutput(stdout, marker, outcome, "codex-result-jsonl");
+
+  assert.deepEqual(classify(stream({ type: "thread.started" }, start, tool, message(marker), end)), pass);
+  assert.deepEqual(classify(stream(start, message(` ${marker} `), end)), pass);
+  assert.deepEqual(classify(stream(start, tool, message("skill unavailable"), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), tool, end)), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), message("skill unavailable"), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker))), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), { type: "turn.failed" })), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), { type: "error", message: "oops" }, end)), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), end, start, end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.started", item: { type: "agent_message", text: marker } }, end)), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), end) + "\n{"), inconclusive);
+  assert.deepEqual(classify(marker), inconclusive);
+  assert.deepEqual(classify(stream(start, message(marker), end), "timeout"), inconclusive);
+  const { markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: stream(start, tool, message("unavailable"), end), stderr: "" },
+    "fake-codex", ["exec", "--json"], marker, "codex-result-jsonl"
+  );
+  assert.deepEqual(markerVerdict, inconclusive);
+});
 
 test("Claude Code skill probe requests a structured final result", () => {
   assert.equal(SKILL_PROBE_SPECS["claude-code"].outputFormat, "claude-result-json");
