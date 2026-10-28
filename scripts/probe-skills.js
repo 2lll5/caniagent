@@ -85,7 +85,13 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     if (events.some((event) => !event || typeof event !== "object" ||
       Array.isArray(event) || event.type === "error" ||
       event.is_error === true || event.part?.type === "error" ||
-      (event.type === "tool_use" && event.part?.state?.status === "error"))) return inconclusive;
+      (event.type === "tool_use" && (
+        // Tool failures may be reported as a state error payload even when
+        // the state status is not literally "error". Never certify a marker
+        // after a failed or declined tool invocation.
+        ["error", "failed", "declined"].includes(event.part?.state?.status) ||
+        event.part?.state?.error != null
+      )))) return inconclusive;
     const replyIndex = events.findLastIndex((event) => event.type === "text" &&
       event.part?.type === "text" && typeof event.part.text === "string");
     // A model reply must belong to an active step, not a bare event or
