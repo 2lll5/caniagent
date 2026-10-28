@@ -56,7 +56,8 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     // terminal turn.completed directly after a completed agent_message;
     // prior prompt/tool echoes, stale turns and failed streams cannot pass.
     if (events.some((event) => !event || typeof event !== "object" ||
-      Array.isArray(event) || event.type === "turn.failed" || event.type === "error")) return inconclusive;
+      Array.isArray(event) || event.type === "turn.failed" ||
+      event.type === "error" || event.type === "item.failed")) return inconclusive;
     const completed = events.length - 1;
     const started = events.findLastIndex((event) => event.type === "turn.started");
     const reply = events[completed - 1];
@@ -75,7 +76,8 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     // later tool activity, explicit failures and incomplete terminal steps.
     if (events.some((event) => !event || typeof event !== "object" ||
       Array.isArray(event) || event.type === "error" ||
-      event.is_error === true || event.part?.type === "error")) return inconclusive;
+      event.is_error === true || event.part?.type === "error" ||
+      (event.type === "tool_use" && event.part?.state?.status === "error"))) return inconclusive;
     const replyIndex = events.findLastIndex((event) => event.type === "text" &&
       event.part?.type === "text" && typeof event.part.text === "string");
     if (replyIndex < 0 ||

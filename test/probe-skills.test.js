@@ -57,6 +57,8 @@ test("Codex skill probe requires a completed JSONL model reply, not a tool echo"
   assert.deepEqual(classify(stream(start, message(marker))), inconclusive);
   assert.deepEqual(classify(stream(start, message(marker), { type: "turn.failed" })), inconclusive);
   assert.deepEqual(classify(stream(start, message(marker), { type: "error", message: "oops" }, end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.failed", item: { type: "command_execution", error: "skill activation failed" } }, message(marker), end)), inconclusive);
+  assert.deepEqual(classify(stream(start, { type: "item.failed", item: { type: "agent_message", text: marker } }, message(marker), end)), inconclusive;
   assert.deepEqual(classify(stream(start, message(marker), end, start, end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.started", item: { type: "agent_message", text: marker } }, end)), inconclusive);
   assert.deepEqual(classify(stream(start, message(marker), end) + "\n{"), inconclusive);
@@ -93,6 +95,7 @@ test("OpenCode skill marker requires final model text, not a tool or prior step"
     [stream(start, message(marker), end, { type: "unexpected_terminal" }), inconclusive],
     [stream(start, message(marker)), pass],
     [stream(start, tool, message("not loaded"), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "error", error: "skill activation failed" } } }, message(marker), end), inconclusive],
     [stream(start, message(marker), tool, end), inconclusive],
     [stream(start, message(marker), start, end), inconclusive],
     [stream(start, message(marker), message("unavailable"), end), inconclusive],
