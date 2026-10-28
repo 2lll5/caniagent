@@ -69,6 +69,50 @@ test("Codex skill probe requires a completed JSONL model reply, not a tool echo"
   assert.deepEqual(markerVerdict, inconclusive);
 });
 
+test("OpenCode skill probe requests JSONL final-response events", () => {
+  assert.equal(SKILL_PROBE_SPECS.opencode.outputFormat, "opencode-result-jsonl");
+  assert.deepEqual(SKILL_PROBE_SPECS.opencode.args("probe"), ["run", "--format", "json", "probe"]);
+});
+
+test("OpenCode skill marker requires final model text, not a tool or prior step", () => {
+  const marker = "CANIAGENT_SKILL_OPENCODE_USER";
+  const pass = { discovered: true, verdict: "pass" };
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const stream = (...events) => events.map((event) => JSON.stringify(event)).join("\n");
+  const start = { type: "step_start", part: { type: "step-start" } };
+  const end = { type: "step_finish", part: { type: "step-finish", reason: "stop" } };
+  const message = (text) => ({ type: "text", part: { type: "text", text } });
+  const tool = { type: "tool_use", part: { type: "tool", state: { output: marker } } };
+  const classify = (stdout, outcome = "success") =>
+    classifySkillOutput(stdout, marker, outcome, "opencode-result-jsonl");
+  const cases = [
+    [stream(start, message(marker), end), pass],
+    [stream(start, tool, message(marker), end), pass],
+    [stream(start, message(marker)), pass],
+    [stream(start, tool, message("not loaded"), end), inconclusive],
+    [stream(start, message(marker), tool, end), inconclusive],
+    [stream(start, message(marker), start, end), inconclusive],
+    [stream(start, message(marker), message("unavailable"), end), inconclusive],
+    [stream(start, message(marker), { type: "step_finish", part: { type: "step-finish", reason: "tool-calls" } }), inconclusive],
+    [stream(start, message(marker), { type: "error", error: { message: "failure" } }), inconclusive],
+    [stream(start, message(marker), { type: "text", part: { type: "error", text: marker } }), inconclusive],
+    [stream(start, message(` ${marker} `), end), inconclusive],
+    [stream(start, tool, end), inconclusive],
+    [marker, inconclusive],
+    [stream(start, message(marker), end) + "\n{", inconclusive],
+    [stream(start, message(marker), end), inconclusive, "timeout"],
+    [stream(start, message(marker), end) + "\n", pass]
+  ];
+  for (const [index, [stdout, expected, outcome]] of cases.entries()) {
+    assert.deepEqual(classify(stdout, outcome), expected, `OpenCode JSONL case ${index + 1}`);
+  }
+  const { markerVerdict } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: stream(start, tool, end), stderr: "" },
+    "fake-opencode", ["run", "--format", "json"], marker, "opencode-result-jsonl"
+  );
+  assert.deepEqual(markerVerdict, inconclusive);
+});
+
 test("Claude Code skill probe requests a structured final result", () => {
   assert.equal(SKILL_PROBE_SPECS["claude-code"].outputFormat, "claude-result-json");
   assert.deepEqual(SKILL_PROBE_SPECS["claude-code"].args("probe"), [
