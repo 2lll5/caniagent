@@ -121,6 +121,15 @@ test("skill marker must be a standalone stdout line, not a tool echo or substrin
   assert.deepEqual(classifySkillOutput("", ""), inconclusive);
 });
 
+test("skill marker must be the last non-empty stdout line, not a prior tool echo", () => {
+  const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const pass = { discovered: true, verdict: "pass" };
+  assert.deepEqual(classifySkillOutput(`tool output:\n${marker}\nSkill unavailable.\n`, marker), inconclusive);
+  assert.deepEqual(classifySkillOutput(`${marker}\nThe requested skill could not be loaded\n`, marker), inconclusive);
+  assert.deepEqual(classifySkillOutput(`log line\n ${marker} \r\n \r\n`, marker), pass);
+});
+
 test("skill verdict uses full raw stdout while saved evidence stays truncated", () => {
   const marker = "CANIAGENT_SKILL_CLAUDE_CODE_USER";
   const rawStdout = "x".repeat(13000) + "\n" + marker;

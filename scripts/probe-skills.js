@@ -45,8 +45,9 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
 
 export function classifySkillOutput(output, marker, executionOutcome = "success") {
   if (executionOutcome !== "success" || !marker) return { discovered: false, verdict: "inconclusive" };
-  // Tool output can echo the SKILL.md instruction line; a substring is not a response.
-  return output.split(/\r?\n/).some((line) => line.trim() === marker)
+  // A tool may echo a standalone marker before the model responds.
+  // Require a terminal stdout marker; this is still provisional, not provenance.
+  return output.trimEnd().split(/\r?\n/).at(-1)?.trim() === marker
     ? { discovered: true, verdict: "pass" }
     : { discovered: false, verdict: "inconclusive" };
 }
