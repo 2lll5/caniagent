@@ -66,6 +66,22 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
           Number.isInteger(event.item.exit_code) && event.item.exit_code !== 0) ||
         (event.item?.type === "mcp_tool_call" && event.item.error != null)
       )))) return inconclusive;
+    // A terminal model reply must not hide an unfinished tool invocation.
+    // Match known tool lifecycle events by item ID; missing IDs on started
+    // tools are ambiguous and therefore cannot establish a passing verdict.
+    const unfinishedTools = new Set();
+    const toolTypes = new Set(["command_execution", "mcp_tool_call", "web_search", "file_change"]);
+    for (const event of events) {
+      if (!toolTypes.has(event.item?.type)) continue;
+      if (event.type === "item.started") {
+        const id = event.item.id;
+        if (typeof id !== "string" || !id || unfinishedTools.has(id)) return inconclusive;
+        unfinishedTools.add(id);
+      } else if (event.type === "item.completed" && typeof event.item.id === "string") {
+        unfinishedTools.delete(event.item.id);
+      }
+    }
+    if (unfinishedTools.size) return inconclusive;
     const completed = events.length - 1;
     const started = events.findLastIndex((event) => event.type === "turn.started");
     const reply = events[completed - 1];
