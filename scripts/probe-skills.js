@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,8 +29,9 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
   const skillDir = path.join(root, ...scopePath, skillName);
   fs.mkdirSync(skillDir, { recursive: true });
   fs.mkdirSync(workspace, { recursive: true });
-  fs.writeFileSync(path.join(workspace, "README.md"), "# CanIAgent Agent Skills probe fixture\n");
-  fs.writeFileSync(path.join(skillDir, "SKILL.md"), [
+  const readmeContent = "# CanIAgent Agent Skills probe fixture\n";
+  fs.writeFileSync(path.join(workspace, "README.md"), readmeContent);
+  const skillContent = [
     "---",
     `name: ${skillName}`,
     "description: CanIAgent skill discovery probe. Use when explicitly asked to run the CanIAgent skill discovery probe.",
@@ -38,11 +39,16 @@ export function createSkillFixture(baseDir, agentId, scope = "project") {
     "",
     `When invoked for the CanIAgent skill discovery probe, reply with exactly: ${marker}`,
     ""
-  ].join("\n"));
+  ].join("\n");
+  fs.writeFileSync(path.join(skillDir, "SKILL.md"), skillContent);
   const discoveryPath = scope === "project"
     ? path.relative(workspace, skillDir).split(path.sep).join("/") + "/"
     : `~/${[...scopePath, skillName].join("/")}/`;
-  return { workspace, skillDir, skillName, marker, discoveryPath };
+  // Hash the logical fixture (path + file contents) without persisting its random challenge.
+  const fixtureSha256 = createHash("sha256").update(JSON.stringify({
+    discoveryPath, readme: readmeContent, skill: skillContent
+  })).digest("hex");
+  return { workspace, skillDir, skillName, marker, discoveryPath, fixtureSha256 };
 }
 
 export function classifySkillOutput(output, marker, executionOutcome = "success", outputFormat = "text") {
@@ -225,6 +231,7 @@ function main() {
           observedAt,
           scope,
           discoveryPath: fixture.discoveryPath,
+          fixtureSha256: fixture.fixtureSha256,
           version,
           execution,
           ...markerVerdict

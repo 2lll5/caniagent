@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -232,6 +233,15 @@ test("skill fixture marker is a fresh unpredictable challenge, not derivable fro
     assert.match(first.marker, /^CANIAGENT_SKILL_[A-F0-9]{32}$/);
     assert.match(second.marker, /^CANIAGENT_SKILL_[A-F0-9]{32}$/);
     assert.notEqual(first.marker, second.marker);
+    assert.match(first.fixtureSha256, /^[a-f0-9]{64}$/);
+    assert.notEqual(first.fixtureSha256, second.fixtureSha256);
+    const fixtureManifest = {
+      discoveryPath: first.discoveryPath,
+      readme: fs.readFileSync(path.join(first.workspace, "README.md"), "utf8"),
+      skill: fs.readFileSync(path.join(first.skillDir, "SKILL.md"), "utf8")
+    };
+    assert.equal(first.fixtureSha256, createHash("sha256").update(JSON.stringify(fixtureManifest)).digest("hex"));
+    assert.equal(JSON.stringify({ discoveryPath: first.discoveryPath, fixtureSha256: first.fixtureSha256 }).includes(first.marker), false);
     assert.notEqual(first.marker, "CANIAGENT_SKILL_CODEX_PROJECT");
     assert.match(fs.readFileSync(path.join(first.skillDir, "SKILL.md"), "utf8"), new RegExp(first.marker));
     assert.equal(first.skillName.includes(first.marker), false);
