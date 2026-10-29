@@ -111,6 +111,8 @@ test("nested markers require a clean terminal line, not CLI echoes or partial ma
     "Instructions: ROOT_MARKER NESTED_MARKER",
     "ROOT_MARKER NESTED_MARKER\nno model answer",
     "ROOT_MARKER\nNESTED_MARKER",
+    "ROOT_MARKER\rNESTED_MARKER",
+    "ROOT_MARKER\rNESTED_MARKER\r",
     "ROOT_MARKER ROOT_MARKER",
     "ROOT_MARKER NESTED_MARKER extra",
     "prefix ROOT_MARKER",
@@ -125,6 +127,7 @@ test("nested markers require a clean terminal line, not CLI echoes or partial ma
     root: true, nested: true, verdict: "root-and-nested"
   });
   assert.equal(classifyNestedMarkers("CLI startup\nROOT_MARKER\n", fixture).verdict, "root-only");
+  assert.equal(classifyNestedMarkers("CLI startup\r NESTED_MARKER ROOT_MARKER \r", fixture).verdict, "root-and-nested");
 });
 
 test("nested challenge markers are masked in persisted command, stdout, stderr and errors", () => {
