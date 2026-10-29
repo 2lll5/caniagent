@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture, runNestedProbe, summarizeNestedExecution } from "../scripts/probe-nested.js";
+import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture, runNestedProbe, runNestedVersionProbe, summarizeNestedExecution } from "../scripts/probe-nested.js";
 
 test("Codex nested probe explicitly permits its generated non-Git fixture", () => {
   const prompt = "Return the applicable instruction markers";
@@ -87,6 +87,28 @@ test("nested probe requires successful, non-empty CLI version evidence", () => {
     { outcome: "success", stdout: "", stderr: "agent 1.0" }
   ]) {
     assert.equal(classifyNestedEvidence({ ...execution, version }, fixture).verdict, "root-and-nested");
+  }
+});
+
+test("nested version probe redacts fixture markers in persisted diagnostics", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-version-mask-"));
+  try {
+    const fixture = createNestedInstructionFixture(temp, "codex");
+    const script = path.join(temp, "mock-version.cjs");
+    fs.writeFileSync(script,
+      `process.stdout.write(${JSON.stringify(fixture.rootMarker)});\nprocess.stderr.write(${JSON.stringify(fixture.nestedMarker)});\n`);
+    const record = runNestedVersionProbe(process.execPath, [script], { cwd: fixture.workspace, fixture });
+    assert.equal(record.outcome, "success");
+    assert.equal(record.stdout, "<ROOT_MARKER>");
+    assert.equal(record.stderr, "<NESTED_MARKER>");
+    for (const value of [record.command, record.stdout, record.stderr]) {
+      assert.ok(!value.includes(fixture.rootMarker));
+      assert.ok(!value.includes(fixture.nestedMarker));
+    }
+    assert.throws(() => runNestedVersionProbe(process.execPath, ["--version"], { cwd: fixture.workspace }),
+      /requires fixture markers/);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
   }
 });
 

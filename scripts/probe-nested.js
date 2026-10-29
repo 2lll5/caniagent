@@ -68,6 +68,14 @@ export function classifyNestedEvidence({ outcome, stdout, version }, fixture) {
     : { root: false, nested: false, verdict: "inconclusive" };
 }
 
+export function runNestedVersionProbe(command, args, { cwd, env, fixture } = {}) {
+  // Version diagnostics may echo fixture files; never persist challenge tokens.
+  if (!fixture?.rootMarker || !fixture?.nestedMarker) {
+    throw new Error("Nested version probe requires fixture markers");
+  }
+  return runNestedProbe(command, args, { cwd, env, timeout: 8000, fixture }).record;
+}
+
 export function redactNestedMarkers(value, { rootMarker, nestedMarker }) {
   return String(value ?? "")
     .replaceAll(rootMarker, "<ROOT_MARKER>")
@@ -112,7 +120,7 @@ function main() {
       fs.mkdirSync(home, { recursive: true });
       const env = isolatedProbeEnvironment(home);
       const fixture = createNestedInstructionFixture(temp, agent.id);
-      const { record: version } = runNestedProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+      const version = runNestedVersionProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, fixture });
       const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory, on one line separated by a space if both apply. Do not inspect files with tools. Do not explain.";
       const { record: execution, rawStdout } = runNestedProbe(agent.command, spec.args(prompt), { cwd: fixture.nested, env, fixture });
       results.push({
