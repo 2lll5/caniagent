@@ -58,8 +58,12 @@ export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
   return { root, nested, verdict: root ? "root-only" : "nested-only" };
 }
 
-export function classifyNestedEvidence({ outcome, stdout }, fixture) {
-  return outcome === "success"
+export function classifyNestedEvidence({ outcome, stdout, version }, fixture) {
+  // Do not attribute markers to an agent when its version probe failed or
+  // returned no evidence. The version string itself is not authenticated.
+  const versionVerified = version?.outcome === "success" &&
+    Boolean((version.stdout ?? "").trim() || (version.stderr ?? "").trim());
+  return outcome === "success" && versionVerified
     ? classifyNestedMarkers(stdout, fixture)
     : { root: false, nested: false, verdict: "inconclusive" };
 }
@@ -118,7 +122,7 @@ function main() {
         fixtureSha256: fixture.fixtureSha256,
         version,
         execution,
-        markers: classifyNestedEvidence({ outcome: execution.outcome, stdout: rawStdout }, fixture)
+        markers: classifyNestedEvidence({ outcome: execution.outcome, stdout: rawStdout, version }, fixture)
       });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });

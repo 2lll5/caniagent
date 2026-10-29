@@ -54,18 +54,40 @@ test("nested marker classification distinguishes precedence observations", () =>
 
 test("nested probe classifies raw stdout, not stderr diagnostics or truncated evidence", () => {
   const fixture = { rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER" };
-  assert.equal(classifyNestedEvidence({
+  assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" },
     outcome: "success", stdout: "NESTED_MARKER", stderr: "ROOT_MARKER"
   }, fixture).verdict, "nested-only");
-  assert.equal(classifyNestedEvidence({
+  assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" },
     outcome: "success", stdout: "no markers", stderr: "ROOT_MARKER"
   }, fixture).verdict, "inconclusive");
-  assert.equal(classifyNestedEvidence({
+  assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" },
     outcome: "success", stdout: "x".repeat(12001) + "\nROOT_MARKER"
   }, fixture).verdict, "root-only");
-  assert.deepEqual(classifyNestedEvidence({
+  assert.deepEqual(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" },
     outcome: "nonzero_exit", stdout: "ROOT_MARKER NESTED_MARKER"
   }, fixture), { root: false, nested: false, verdict: "inconclusive" });
+});
+
+test("nested probe requires successful, non-empty CLI version evidence", () => {
+  const fixture = { rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER" };
+  const execution = { outcome: "success", stdout: "ROOT_MARKER NESTED_MARKER" };
+  for (const outcome of ["not_found", "nonzero_exit", "timeout", "spawn_error", "signaled"]) {
+    assert.deepEqual(classifyNestedEvidence({
+      ...execution, version: { outcome, stdout: "agent 1.0" }
+    }, fixture), { root: false, nested: false, verdict: "inconclusive" }, outcome);
+  }
+  for (const version of [
+    undefined,
+    { outcome: "success", stdout: "  ", stderr: "" }
+  ]) {
+    assert.equal(classifyNestedEvidence({ ...execution, version }, fixture).verdict, "inconclusive");
+  }
+  for (const version of [
+    { outcome: "success", stdout: "agent 1.0", stderr: "" },
+    { outcome: "success", stdout: "", stderr: "agent 1.0" }
+  ]) {
+    assert.equal(classifyNestedEvidence({ ...execution, version }, fixture).verdict, "root-and-nested");
+  }
 });
 
 test("nested fixture generates fresh challenge markers for each run", () => {
@@ -156,8 +178,8 @@ test("nested challenge markers are masked in persisted command, stdout, stderr a
     assert.ok(!value.includes(fixture.nestedMarker));
   }
   // Only the original in-memory stdout is eligible for classification.
-  assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: fixture.nestedMarker }, fixture).verdict, "nested-only");
-  assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: record.stdout }, fixture).verdict, "inconclusive");
+  assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" }, outcome: record.outcome, stdout: fixture.nestedMarker }, fixture).verdict, "nested-only");
+  assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" }, outcome: record.outcome, stdout: record.stdout }, fixture).verdict, "inconclusive");
 
   const failure = summarizeNestedExecution("mock-agent", [], {
     status: null,
@@ -177,7 +199,7 @@ test("nested probe retains final marker after more than 1 MiB of stdout", () => 
     assert.equal(record.outcome, "success");
     assert.equal(record.status, 0);
     assert.equal(record.stdout.length, 12000);
-    assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: rawStdout }, {
+    assert.equal(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" }, outcome: record.outcome, stdout: rawStdout }, {
       rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER"
     }).verdict, "root-only");
     assert.equal(record.stdout.includes("ROOT_MARKER"), false);
@@ -196,7 +218,7 @@ test("nested probe buffer overflow fails closed rather than accepting partial st
     assert.equal(record.outcome, "spawn_error");
     assert.match(record.error ?? "", /ENOBUFS/);
     assert.ok(record.stdout.length <= 12000);
-    assert.deepEqual(classifyNestedEvidence({ outcome: record.outcome, stdout: rawStdout }, {
+    assert.deepEqual(classifyNestedEvidence({ version: { outcome: "success", stdout: "agent 1.0" }, outcome: record.outcome, stdout: rawStdout }, {
       rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER"
     }), { root: false, nested: false, verdict: "inconclusive" });
   } finally {
