@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture, summarizeNestedExecution } from "../scripts/probe-nested.js";
+import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture, runNestedProbe, summarizeNestedExecution } from "../scripts/probe-nested.js";
 
 test("Codex nested probe explicitly permits its generated non-Git fixture", () => {
   const prompt = "Return the applicable instruction markers";
@@ -158,4 +158,40 @@ test("nested challenge markers are masked in persisted command, stdout, stderr a
   }, fixture);
   assert.equal(failure.outcome, "spawn_error");
   assert.equal(failure.error, "failed near <ROOT_MARKER>");
+});
+
+test("nested probe retains final marker after more than 1 MiB of stdout", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-large-"));
+  try {
+    const script = path.join(dir, "large-output.cjs");
+    fs.writeFileSync(script, 'process.stdout.write("x".repeat(1_100_000) + "\\nROOT_MARKER");\n');
+    const { record, rawStdout } = runNestedProbe(process.execPath, [script], { cwd: dir });
+    assert.equal(record.outcome, "success");
+    assert.equal(record.status, 0);
+    assert.equal(record.stdout.length, 12000);
+    assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: rawStdout }, {
+      rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER"
+    }).verdict, "root-only");
+    assert.equal(record.stdout.includes("ROOT_MARKER"), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("nested probe buffer overflow fails closed rather than accepting partial stdout", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-overflow-"));
+  try {
+    const script = path.join(dir, "overflow.cjs");
+    fs.writeFileSync(script,
+      'process.stdout.write("x".repeat(8 * 1024 * 1024 + 1024) + "\\nROOT_MARKER");\n');
+    const { record, rawStdout } = runNestedProbe(process.execPath, [script], { cwd: dir });
+    assert.equal(record.outcome, "spawn_error");
+    assert.match(record.error ?? "", /ENOBUFS/);
+    assert.ok(record.stdout.length <= 12000);
+    assert.deepEqual(classifyNestedEvidence({ outcome: record.outcome, stdout: rawStdout }, {
+      rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER"
+    }), { root: false, nested: false, verdict: "inconclusive" });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
