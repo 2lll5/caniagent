@@ -67,12 +67,18 @@ test("Codex skill probe requires a completed JSONL model reply, not a tool echo"
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "failed" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: "permission denied" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code: 0 } }, message(marker), end)), pass);
+  for (const status of ["pending", "running", "in_progress"]) {
+    assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status, exit_code: 0 } }, message(marker), end)), inconclusive);
+  }
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: null } }, message(marker), end)), pass);
   // A final model marker cannot certify a turn with an unfinished tool.
   const startedTool = { type: "item.started", item: { id: "tool-1", type: "command_execution" } };
   const completedTool = { type: "item.completed", item: { id: "tool-1", type: "command_execution", exit_code: 0 } };
   assert.deepEqual(classify(stream(start, startedTool, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, startedTool, completedTool, message(marker), end)), pass);
+  assert.deepEqual(classify(stream(start, startedTool,
+    { type: "item.completed", item: { id: "tool-1", type: "mcp_tool_call", error: null } },
+    message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, startedTool, { ...completedTool, item: { ...completedTool.item, id: "other" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.started", item: { type: "mcp_tool_call" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.started", item: { id: "mcp-1", type: "mcp_tool_call" } }, { type: "item.completed", item: { id: "mcp-1", type: "mcp_tool_call", error: null } }, message(marker), end)), pass);

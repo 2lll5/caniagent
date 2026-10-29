@@ -68,6 +68,7 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       // final model reply must not conceal a failed/declined tool invocation.
       (event.type === "item.completed" && (
         event.item?.status === "failed" || event.item?.status === "declined" ||
+        ["pending", "running", "in_progress"].includes(event.item?.status) ||
         (event.item?.type === "command_execution" &&
           Number.isInteger(event.item.exit_code) && event.item.exit_code !== 0) ||
         (event.item?.type === "mcp_tool_call" && event.item.error != null)
@@ -75,15 +76,18 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     // A terminal model reply must not hide an unfinished tool invocation.
     // Match known tool lifecycle events by item ID; missing IDs on started
     // tools are ambiguous and therefore cannot establish a passing verdict.
-    const unfinishedTools = new Set();
+    const unfinishedTools = new Map();
     const toolTypes = new Set(["command_execution", "mcp_tool_call", "web_search", "file_change"]);
     for (const event of events) {
       if (!toolTypes.has(event.item?.type)) continue;
       if (event.type === "item.started") {
         const id = event.item.id;
         if (typeof id !== "string" || !id || unfinishedTools.has(id)) return inconclusive;
-        unfinishedTools.add(id);
-      } else if (event.type === "item.completed" && typeof event.item.id === "string") {
+        unfinishedTools.set(id, event.item.type);
+      } else if (event.type === "item.completed" && typeof event.item.id === "string" &&
+        unfinishedTools.has(event.item.id)) {
+        // A completed event for a different tool type cannot close this call.
+        if (unfinishedTools.get(event.item.id) !== event.item.type) return inconclusive;
         unfinishedTools.delete(event.item.id);
       }
     }
