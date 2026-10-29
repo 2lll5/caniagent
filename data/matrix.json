@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-09-17",
+  "updatedAt": "2026-10-30",
   "project": {
     "name": "CanIAgent",
     "repository": "https://github.com/2lll5/caniagent",
@@ -84,7 +84,7 @@
       "support": {
         "codex": {"status":"yes","note":"Codex has native skills and official skill documentation.","evidence":[{"type":"docs","url":"https://developers.openai.com/codex/skills","checked":"2026-09-17"}]},
         "claude-code": {"status":"yes","note":"Claude Code supports reusable skills in its .claude ecosystem.","evidence":[{"type":"docs","url":"https://docs.anthropic.com/en/docs/claude-code/skills","checked":"2026-09-17"}]},
-        "gemini-cli": {"status":"unknown","note":"Not yet verified against the current Gemini CLI release.","evidence":[]},
+        "gemini-cli": {"status":"yes","note":"Gemini CLI v0.26.0+ documents Agent Skills discovery from workspace/user SKILL.md paths (.gemini/skills and .agents/skills). Activation requires consent; workspace skills require a trusted workspace. Provider-backed discovery/activation behavior has not been probe-verified here.","evidence":[{"type":"docs","url":"https://geminicli.com/docs/cli/skills/","checked":"2026-10-30"},{"type":"docs","url":"https://geminicli.com/docs/cli/tutorials/skills-getting-started/","checked":"2026-10-30"},{"type":"release","url":"https://github.com/google-gemini/gemini-cli/blob/main/docs/changelogs/index.md","checked":"2026-10-30"}]},
         "opencode": {"status":"yes","note":"Native SKILL.md discovery, including Claude- and agent-compatible paths.","evidence":[{"type":"docs","url":"https://opencode.ai/docs/skills","checked":"2026-09-17"}]}
       }
     },

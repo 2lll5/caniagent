@@ -62,7 +62,7 @@ The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`
 |---|:---:|:---:|:---:|:---:|
 | Project instructions | ✅ | ✅ | ✅ | ✅ |
 | Nested instruction scopes | ✅ | 🟡 | ✅ | ✅ |
-| Agent Skills (`SKILL.md`) | ✅ | ✅ | ❔ | ✅ |
+| Agent Skills (`SKILL.md`) | ✅ | ✅ | ✅ | ✅ |
 | MCP client | ✅ | ✅ | ✅ | ✅ |
 | Lifecycle hooks | ✅ | ✅ | ❔ | ✅ |
 | Non-interactive mode | ✅ | ✅ | ✅ | ✅ |
