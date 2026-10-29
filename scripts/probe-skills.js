@@ -107,6 +107,19 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     if (events.some((event) => !event || typeof event !== "object" ||
       Array.isArray(event) || event.type === "error" ||
       event.is_error === true || event.part?.type === "error")) return inconclusive;
+    // All structured events must belong to one session. A mixed-session
+    // stream cannot establish that the final model text came from this probe.
+    const sessionIds = new Set();
+    for (const event of events) {
+      const envelopeId = event.sessionID;
+      const partId = event.part?.sessionID;
+      if ((envelopeId != null && (typeof envelopeId !== "string" || !envelopeId)) ||
+        (partId != null && (typeof partId !== "string" || !partId)) ||
+        (envelopeId && partId && envelopeId !== partId)) return inconclusive;
+      if (envelopeId) sessionIds.add(envelopeId);
+      if (partId) sessionIds.add(partId);
+    }
+    if (sessionIds.size > 1) return inconclusive;
     // OpenCode can emit pending/running tool updates before completion.
     // A final model reply cannot certify a skill while a tool is unresolved.
     // Correlate updates by callID; unknown or unidentifiable states fail closed.
@@ -115,7 +128,10 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       if (event.type !== "tool_use") continue;
       const part = event.part;
       const status = part?.state?.status;
+      // A completed shell tool may still have failed with a nonzero exit code.
+      const exitCode = part?.state?.metadata?.exit;
       if (part?.type !== "tool" || part?.state?.error != null ||
+        (exitCode != null && exitCode !== 0) ||
         !["pending", "running", "completed"].includes(status)) return inconclusive;
       const callID = part.callID;
       if (status !== "completed" && (typeof callID !== "string" || !callID)) return inconclusive;

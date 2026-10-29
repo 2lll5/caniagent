@@ -120,6 +120,16 @@ test("OpenCode skill marker requires final model text, not a tool or prior step"
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "declined" } } }, message(marker), end), inconclusive],
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", error: "permission denied" } } }, message(marker), end), inconclusive],
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", error: null } } }, message(marker), end), pass],
+    // OpenCode shell tools can report status=completed even with a failing exit.
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", metadata: { exit: 1 } } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", metadata: { exit: "1" } } } }, message(marker), end), inconclusive],
+    [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "completed", metadata: { exit: 0 } } } }, message(marker), end), pass],
+    // A final marker from another OpenCode session is not discovery evidence.
+    [stream({ ...start, sessionID: "ses-a", part: { ...start.part, sessionID: "ses-a" } },
+      { ...message(marker), sessionID: "ses-a", part: { ...message(marker).part, sessionID: "ses-a" } },
+      { ...end, sessionID: "ses-a", part: { ...end.part, sessionID: "ses-a" } }), pass],
+    [stream({ ...start, sessionID: "ses-a" }, { ...message(marker), sessionID: "ses-b" }, end), inconclusive],
+    [stream({ ...start, sessionID: "ses-a", part: { ...start.part, sessionID: "ses-b" } }, message(marker), end), inconclusive],
     // Unfinished tool calls must not be hidden by a later correct model marker.
     [stream(start, { type: "tool_use", part: { type: "tool", state: { output: marker } } }, message(marker), end), inconclusive],
     [stream(start, { type: "tool_use", part: { type: "tool", state: { status: "pending" } } }, message(marker), end), inconclusive],
