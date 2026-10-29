@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +32,7 @@ for (const agentId of Object.keys(NESTED_PROBE_SPECS)) {
       assert.match(root, new RegExp(fixture.rootMarker));
       assert.match(nested, new RegExp(fixture.nestedMarker));
       assert.notEqual(fixture.rootMarker, fixture.nestedMarker);
+      assert.match(fixture.fixtureSha256, /^[a-f0-9]{64}$/);
       assert.deepEqual(NESTED_PROBE_SPECS[agentId].versionArgs, ["--version"]);
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });
@@ -74,10 +76,32 @@ test("nested fixture generates fresh challenge markers for each run", () => {
     assert.match(first.nestedMarker, /^CANIAGENT_NESTED_CODEX_[0-9A-F]{24}$/);
     assert.notEqual(first.rootMarker, second.rootMarker);
     assert.notEqual(first.nestedMarker, second.nestedMarker);
+    assert.notEqual(first.fixtureSha256, second.fixtureSha256);
     assert.ok(fs.readFileSync(path.join(first.workspace, "AGENTS.md"), "utf8").includes(first.rootMarker));
     assert.ok(fs.readFileSync(path.join(first.nested, "AGENTS.md"), "utf8").includes(first.nestedMarker));
   } finally {
     for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("nested fixture digest covers the generated instruction and README bytes", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-digest-"));
+  try {
+    const fixture = createNestedInstructionFixture(temp, "codex");
+    const manifest = () => ({
+      instructionFile: fixture.file,
+      root: fs.readFileSync(path.join(fixture.workspace, fixture.file), "utf8"),
+      nested: fs.readFileSync(path.join(fixture.nested, fixture.file), "utf8"),
+      readme: fs.readFileSync(path.join(fixture.workspace, "README.md"), "utf8")
+    });
+    const digest = () => createHash("sha256").update(JSON.stringify(manifest())).digest("hex");
+    assert.equal(fixture.fixtureSha256, digest());
+    assert.ok(!fixture.fixtureSha256.includes(fixture.rootMarker));
+    assert.ok(!fixture.fixtureSha256.includes(fixture.nestedMarker));
+    fs.appendFileSync(path.join(fixture.nested, fixture.file), "modified\\n");
+    assert.notEqual(fixture.fixtureSha256, digest());
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
   }
 });
 

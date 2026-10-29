@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,7 +29,14 @@ export function createNestedInstructionFixture(baseDir, agentId) {
   fs.writeFileSync(path.join(workspace, spec.file), `When asked for CanIAgent instruction markers, include exactly this marker: ${rootMarker}\n`);
   fs.writeFileSync(path.join(nested, spec.file), `When asked for CanIAgent instruction markers, include exactly this marker: ${nestedMarker}\n`);
   fs.writeFileSync(path.join(workspace, "README.md"), "# CanIAgent nested-instruction probe fixture\n");
-  return { workspace, nested, rootMarker, nestedMarker, file: spec.file };
+  // Commit to the exact generated fixture without persisting its challenge tokens.
+  const fixtureSha256 = createHash("sha256").update(JSON.stringify({
+    instructionFile: spec.file,
+    root: fs.readFileSync(path.join(workspace, spec.file), "utf8"),
+    nested: fs.readFileSync(path.join(nested, spec.file), "utf8"),
+    readme: fs.readFileSync(path.join(workspace, "README.md"), "utf8")
+  })).digest("hex");
+  return { workspace, nested, rootMarker, nestedMarker, file: spec.file, fixtureSha256 };
 }
 
 export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
@@ -105,6 +112,7 @@ function main() {
         agent: agent.id,
         observedAt,
         instructionFile: fixture.file,
+        fixtureSha256: fixture.fixtureSha256,
         version,
         execution,
         markers: classifyNestedEvidence({ outcome: execution.outcome, stdout: rawStdout }, fixture)
