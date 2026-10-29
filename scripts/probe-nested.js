@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,8 +19,10 @@ export function createNestedInstructionFixture(baseDir, agentId) {
   const spec = NESTED_PROBE_SPECS[agentId];
   if (!spec) throw new Error(`No nested-instruction probe adapter for ${agentId}`);
   const suffix = agentId.replaceAll("-", "_").toUpperCase();
-  const rootMarker = `CANIAGENT_ROOT_${suffix}`;
-  const nestedMarker = `CANIAGENT_NESTED_${suffix}`;
+  // Fresh per-run challenge prevents stale or memorized marker matches.
+  const challenge = randomBytes(12).toString("hex").toUpperCase();
+  const rootMarker = `CANIAGENT_ROOT_${suffix}_${challenge}`;
+  const nestedMarker = `CANIAGENT_NESTED_${suffix}_${challenge}`;
   const workspace = path.join(baseDir, "workspace");
   const nested = path.join(workspace, "nested");
   fs.mkdirSync(nested, { recursive: true });

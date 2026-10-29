@@ -65,3 +65,18 @@ test("nested probe classifies raw stdout, not stderr diagnostics or truncated ev
     outcome: "nonzero_exit", stdout: "ROOT_MARKER NESTED_MARKER"
   }, fixture), { root: false, nested: false, verdict: "inconclusive" });
 });
+
+test("nested fixture generates fresh challenge markers for each run", () => {
+  const dirs = [0, 1].map(() => fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-nonce-")));
+  try {
+    const [first, second] = dirs.map((dir) => createNestedInstructionFixture(dir, "codex"));
+    assert.match(first.rootMarker, /^CANIAGENT_ROOT_CODEX_[0-9A-F]{24}$/);
+    assert.match(first.nestedMarker, /^CANIAGENT_NESTED_CODEX_[0-9A-F]{24}$/);
+    assert.notEqual(first.rootMarker, second.rootMarker);
+    assert.notEqual(first.nestedMarker, second.nestedMarker);
+    assert.ok(fs.readFileSync(path.join(first.workspace, "AGENTS.md"), "utf8").includes(first.rootMarker));
+    assert.ok(fs.readFileSync(path.join(first.nested, "AGENTS.md"), "utf8").includes(first.nestedMarker));
+  } finally {
+    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
