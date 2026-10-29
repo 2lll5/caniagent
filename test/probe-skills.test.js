@@ -67,7 +67,12 @@ test("Codex skill probe requires a completed JSONL model reply, not a tool echo"
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "failed" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: "permission denied" } }, message(marker), end)), inconclusive);
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code: 0 } }, message(marker), end)), pass);
-  for (const status of ["pending", "running", "in_progress"]) {
+  // An ambiguous or contradictory tool completion must not certify discovery.
+  for (const exit_code of ["0", "1", 1.5, -1]) {
+    assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code } }, message(marker), end)), inconclusive);
+  }
+  assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status: "completed", exit_code: 0, error: "execution failed" } }, message(marker), end)), inconclusive);
+  for (const status of ["error", "cancelled", "canceled", "pending", "running", "in_progress"]) {
     assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "command_execution", status, exit_code: 0 } }, message(marker), end)), inconclusive);
   }
   assert.deepEqual(classify(stream(start, { type: "item.completed", item: { type: "mcp_tool_call", status: "completed", error: null } }, message(marker), end)), pass);

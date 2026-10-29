@@ -67,10 +67,13 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
       // A tool can finish with an error inside item.completed. A successful
       // final model reply must not conceal a failed/declined tool invocation.
       (event.type === "item.completed" && (
-        event.item?.status === "failed" || event.item?.status === "declined" ||
-        ["pending", "running", "in_progress"].includes(event.item?.status) ||
-        (event.item?.type === "command_execution" &&
-          Number.isInteger(event.item.exit_code) && event.item.exit_code !== 0) ||
+        ["failed", "declined", "error", "cancelled", "canceled",
+          "pending", "running", "in_progress"].includes(event.item?.status) ||
+        (event.item?.type === "command_execution" && (
+          event.item.error != null ||
+          (event.item.exit_code != null &&
+            (!Number.isInteger(event.item.exit_code) || event.item.exit_code !== 0))
+        )) ||
         (event.item?.type === "mcp_tool_call" && event.item.error != null)
       )))) return inconclusive;
     // A terminal model reply must not hide an unfinished tool invocation.
