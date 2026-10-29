@@ -49,4 +49,4 @@ For **OpenCode**, the probe requests `opencode run --format json` and reads the 
 
 These structured verdicts verify the CLI's reported final model response, **not** independently that the skill was activated. Missing markers, authentication failures, timeouts, non-zero exits, and other execution problems are `inconclusive`; absence is not treated as evidence of unsupported behavior.
 
-Do not update `data/matrix.json` from documentation alone or a single ad-hoc run. Preserve the probe artifact with agent versions and reproduce the result before changing compatibility evidence, per `METHODOLOGY.md`.
+Per `METHODOLOGY.md`, current official documentation can support a documented-capability matrix status, but it does **not** constitute a successful behavior probe. Keep provider-backed discovery/activation claims separate: preserve the probe artifact with agent versions and reproduce the result before marking behavior as verified.
