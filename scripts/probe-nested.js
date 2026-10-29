@@ -56,19 +56,29 @@ export function classifyNestedEvidence({ outcome, stdout }, fixture) {
     : { root: false, nested: false, verdict: "inconclusive" };
 }
 
-function run(command, args, { cwd, env, timeout = 60000 } = {}) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
-  const outcome = classifyProbeExecution(result);
+export function redactNestedMarkers(value, { rootMarker, nestedMarker }) {
+  return String(value ?? "")
+    .replaceAll(rootMarker, "<ROOT_MARKER>")
+    .replaceAll(nestedMarker, "<NESTED_MARKER>");
+}
+
+export function summarizeNestedExecution(command, args, result, fixture) {
+  const mask = (value) => fixture ? redactNestedMarkers(value, fixture) : value;
   return {
-    record: {
-      command: redactProbeOutput([command, ...args].join(" ")),
-      outcome,
-      status: result.status,
-      signal: result.signal,
-      stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
-      stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
-      error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
-    },
+    command: redactProbeOutput(mask([command, ...args].join(" "))),
+    outcome: classifyProbeExecution(result),
+    status: result.status,
+    signal: result.signal,
+    stdout: redactAndTruncateProbeOutput(mask(result.stdout ?? "")),
+    stderr: redactAndTruncateProbeOutput(mask(result.stderr ?? "")),
+    error: result.error?.message ? redactProbeOutput(mask(result.error.message)) : undefined
+  };
+}
+
+function run(command, args, { cwd, env, timeout = 60000, fixture } = {}) {
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
+  return {
+    record: summarizeNestedExecution(command, args, result, fixture),
     // Raw stdout is used only for classification, never persisted in the report.
     rawStdout: result.stdout ?? ""
   };
@@ -90,7 +100,7 @@ function main() {
       const fixture = createNestedInstructionFixture(temp, agent.id);
       const { record: version } = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory, on one line separated by a space if both apply. Do not inspect files with tools. Do not explain.";
-      const { record: execution, rawStdout } = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env });
+      const { record: execution, rawStdout } = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env, fixture });
       results.push({
         agent: agent.id,
         observedAt,

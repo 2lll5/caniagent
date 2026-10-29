@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture } from "../scripts/probe-nested.js";
+import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture, summarizeNestedExecution } from "../scripts/probe-nested.js";
 
 test("Codex nested probe explicitly permits its generated non-Git fixture", () => {
   const prompt = "Return the applicable instruction markers";
@@ -101,4 +101,37 @@ test("nested markers require a clean terminal line, not CLI echoes or partial ma
     root: true, nested: true, verdict: "root-and-nested"
   });
   assert.equal(classifyNestedMarkers("CLI startup\nROOT_MARKER\n", fixture).verdict, "root-only");
+});
+
+test("nested challenge markers are masked in persisted command, stdout, stderr and errors", () => {
+  const fixture = {
+    rootMarker: "CANIAGENT_ROOT_CODEX_ABCDEF0123456789ABCDEF01",
+    nestedMarker: "CANIAGENT_NESTED_CODEX_ABCDEF0123456789ABCDEF01"
+  };
+  const result = {
+    status: 0,
+    signal: null,
+    stdout: `startup ${fixture.rootMarker}\n${fixture.nestedMarker}`,
+    stderr: `diagnostic ${fixture.nestedMarker}`
+  };
+  const record = summarizeNestedExecution("mock-agent", ["--echo", fixture.rootMarker], result, fixture);
+  assert.equal(record.outcome, "success");
+  assert.equal(record.command, "mock-agent --echo <ROOT_MARKER>");
+  assert.equal(record.stdout, "startup <ROOT_MARKER>\n<NESTED_MARKER>");
+  assert.equal(record.stderr, "diagnostic <NESTED_MARKER>");
+  for (const value of [record.command, record.stdout, record.stderr]) {
+    assert.ok(!value.includes(fixture.rootMarker));
+    assert.ok(!value.includes(fixture.nestedMarker));
+  }
+  // Only the original in-memory stdout is eligible for classification.
+  assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: fixture.nestedMarker }, fixture).verdict, "nested-only");
+  assert.equal(classifyNestedEvidence({ outcome: record.outcome, stdout: record.stdout }, fixture).verdict, "inconclusive");
+
+  const failure = summarizeNestedExecution("mock-agent", [], {
+    status: null,
+    signal: null,
+    error: new Error(`failed near ${fixture.rootMarker}`)
+  }, fixture);
+  assert.equal(failure.outcome, "spawn_error");
+  assert.equal(failure.error, "failed near <ROOT_MARKER>");
 });
