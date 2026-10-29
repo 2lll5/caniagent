@@ -37,17 +37,27 @@ export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
   return { root, nested, verdict: root ? "root-only" : "nested-only" };
 }
 
+export function classifyNestedEvidence({ outcome, stdout }, fixture) {
+  return outcome === "success"
+    ? classifyNestedMarkers(stdout, fixture)
+    : { root: false, nested: false, verdict: "inconclusive" };
+}
+
 function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, shell: process.platform === "win32" });
   const outcome = classifyProbeExecution(result);
   return {
-    command: redactProbeOutput([command, ...args].join(" ")),
-    outcome,
-    status: result.status,
-    signal: result.signal,
-    stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
-    stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
-    error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
+    record: {
+      command: redactProbeOutput([command, ...args].join(" ")),
+      outcome,
+      status: result.status,
+      signal: result.signal,
+      stdout: redactAndTruncateProbeOutput(result.stdout ?? ""),
+      stderr: redactAndTruncateProbeOutput(result.stderr ?? ""),
+      error: result.error?.message ? redactProbeOutput(result.error.message) : undefined
+    },
+    // Raw stdout is used only for classification, never persisted in the report.
+    rawStdout: result.stdout ?? ""
   };
 }
 
@@ -65,19 +75,16 @@ function main() {
       fs.mkdirSync(home, { recursive: true });
       const env = isolatedProbeEnvironment(home);
       const fixture = createNestedInstructionFixture(temp, agent.id);
-      const version = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+      const { record: version } = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.";
-      const execution = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env });
-      const combined = `${execution.stdout}\n${execution.stderr}`;
+      const { record: execution, rawStdout } = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env });
       results.push({
         agent: agent.id,
         observedAt,
         instructionFile: fixture.file,
         version,
         execution,
-        markers: execution.outcome === "success"
-          ? classifyNestedMarkers(combined, fixture)
-          : { root: false, nested: false, verdict: "inconclusive" }
+        markers: classifyNestedEvidence({ outcome: execution.outcome, stdout: rawStdout }, fixture)
       });
     } finally {
       fs.rmSync(temp, { recursive: true, force: true });

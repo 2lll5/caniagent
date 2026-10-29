@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { NESTED_PROBE_SPECS, classifyNestedMarkers, createNestedInstructionFixture } from "../scripts/probe-nested.js";
+import { NESTED_PROBE_SPECS, classifyNestedEvidence, classifyNestedMarkers, createNestedInstructionFixture } from "../scripts/probe-nested.js";
 
 test("Codex nested probe explicitly permits its generated non-Git fixture", () => {
   const prompt = "Return the applicable instruction markers";
@@ -48,4 +48,20 @@ test("nested marker classification distinguishes precedence observations", () =>
   assert.equal(classifyNestedMarkers("ROOT_MARKER", fixture).verdict, "root-only");
   assert.equal(classifyNestedMarkers("NESTED_MARKER", fixture).verdict, "nested-only");
   assert.equal(classifyNestedMarkers("authentication required", fixture).verdict, "inconclusive");
+});
+
+test("nested probe classifies raw stdout, not stderr diagnostics or truncated evidence", () => {
+  const fixture = { rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER" };
+  assert.equal(classifyNestedEvidence({
+    outcome: "success", stdout: "NESTED_MARKER", stderr: "ROOT_MARKER"
+  }, fixture).verdict, "nested-only");
+  assert.equal(classifyNestedEvidence({
+    outcome: "success", stdout: "no markers", stderr: "ROOT_MARKER"
+  }, fixture).verdict, "inconclusive");
+  assert.equal(classifyNestedEvidence({
+    outcome: "success", stdout: "x".repeat(12001) + "ROOT_MARKER"
+  }, fixture).verdict, "root-only");
+  assert.deepEqual(classifyNestedEvidence({
+    outcome: "nonzero_exit", stdout: "ROOT_MARKER NESTED_MARKER"
+  }, fixture), { root: false, nested: false, verdict: "inconclusive" });
 });
