@@ -59,7 +59,7 @@ test("nested probe classifies raw stdout, not stderr diagnostics or truncated ev
     outcome: "success", stdout: "no markers", stderr: "ROOT_MARKER"
   }, fixture).verdict, "inconclusive");
   assert.equal(classifyNestedEvidence({
-    outcome: "success", stdout: "x".repeat(12001) + "ROOT_MARKER"
+    outcome: "success", stdout: "x".repeat(12001) + "\nROOT_MARKER"
   }, fixture).verdict, "root-only");
   assert.deepEqual(classifyNestedEvidence({
     outcome: "nonzero_exit", stdout: "ROOT_MARKER NESTED_MARKER"
