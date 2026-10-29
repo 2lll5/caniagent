@@ -80,3 +80,25 @@ test("nested fixture generates fresh challenge markers for each run", () => {
     for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("nested markers require a clean terminal line, not CLI echoes or partial matches", () => {
+  const fixture = { rootMarker: "ROOT_MARKER", nestedMarker: "NESTED_MARKER" };
+  for (const output of [
+    "Instructions: ROOT_MARKER NESTED_MARKER",
+    "ROOT_MARKER NESTED_MARKER\nno model answer",
+    "ROOT_MARKER\nNESTED_MARKER",
+    "ROOT_MARKER ROOT_MARKER",
+    "ROOT_MARKER NESTED_MARKER extra",
+    "prefix ROOT_MARKER",
+    "ROOT_MARKER_NESTED_MARKER",
+    "tool echoed ROOT_MARKER\nROOT_MARKER"
+  ]) {
+    assert.deepEqual(classifyNestedMarkers(output, fixture), {
+      root: false, nested: false, verdict: "inconclusive"
+    }, output);
+  }
+  assert.deepEqual(classifyNestedMarkers("CLI startup\r\n NESTED_MARKER ROOT_MARKER \r\n", fixture), {
+    root: true, nested: true, verdict: "root-and-nested"
+  });
+  assert.equal(classifyNestedMarkers("CLI startup\nROOT_MARKER\n", fixture).verdict, "root-only");
+});

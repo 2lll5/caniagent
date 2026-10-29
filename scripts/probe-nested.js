@@ -33,8 +33,18 @@ export function createNestedInstructionFixture(baseDir, agentId) {
 }
 
 export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
-  const root = output.includes(rootMarker);
-  const nested = output.includes(nestedMarker);
+  // Only an exact terminal line is provisional evidence. CLI diagnostics
+  // and instruction-file echoes elsewhere in stdout must not count.
+  const lines = output.trimEnd().split(/\r?\n/);
+  const finalLine = lines.at(-1)?.trim() ?? "";
+  const earlierOutput = lines.slice(0, -1).join("\n");
+  const tokens = finalLine ? finalLine.split(/\s+/) : [];
+  const valid = !earlierOutput.includes(rootMarker) && !earlierOutput.includes(nestedMarker) &&
+    tokens.length > 0 && tokens.length <= 2 &&
+    new Set(tokens).size === tokens.length &&
+    tokens.every((token) => token === rootMarker || token === nestedMarker);
+  const root = valid && tokens.includes(rootMarker);
+  const nested = valid && tokens.includes(nestedMarker);
   if (!root && !nested) return { root, nested, verdict: "inconclusive" };
   if (root && nested) return { root, nested, verdict: "root-and-nested" };
   return { root, nested, verdict: root ? "root-only" : "nested-only" };
@@ -79,7 +89,7 @@ function main() {
       const env = isolatedProbeEnvironment(home);
       const fixture = createNestedInstructionFixture(temp, agent.id);
       const { record: version } = run(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
-      const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory. Do not inspect files with tools. Do not explain.";
+      const prompt = "Reply with only the CanIAgent instruction marker tokens that apply in this directory, on one line separated by a space if both apply. Do not inspect files with tools. Do not explain.";
       const { record: execution, rawStdout } = run(agent.command, spec.args(prompt), { cwd: fixture.nested, env });
       results.push({
         agent: agent.id,
