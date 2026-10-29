@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture, qualifySkillProbeVerdict, runSkillProbe } from "../scripts/probe-skills.js";
+import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture, hasUsableSkillVersion, qualifySkillProbeVerdict, runSkillBehaviorWithVersionGate, runSkillProbe } from "../scripts/probe-skills.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("skill probe adapters use documented project discovery conventions", () => {
@@ -44,6 +44,42 @@ test("skill version evidence must be successful and nonempty before a passing ma
   );
   assert.equal(version.stdout.includes(marker), false);
   assert.match(version.stdout, /<SKILL_MARKER>/);
+});
+
+test("failed or empty version evidence skips the authenticated skill behavior run", () => {
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  for (const version of [
+    undefined,
+    { outcome: "success", stdout: " ", stderr: "" },
+    { outcome: "nonzero_exit", stdout: "agent 1.0" },
+    { outcome: "timeout", stderr: "agent 1.0" },
+    { outcome: "spawn_error", stdout: "agent 1.0" }
+  ]) {
+    let calls = 0;
+    assert.equal(hasUsableSkillVersion(version), false);
+    const result = runSkillBehaviorWithVersionGate(version, () => {
+      calls++;
+      throw new Error("behavior must not run without usable version evidence");
+    });
+    assert.equal(calls, 0);
+    assert.deepEqual(result, {
+      execution: { outcome: "skipped", reason: "version_evidence_unavailable" },
+      markerVerdict: inconclusive
+    });
+  }
+  for (const version of [
+    { outcome: "success", stdout: "agent 1.0", stderr: "" },
+    { outcome: "success", stdout: "", stderr: "agent 1.0" }
+  ]) {
+    let calls = 0;
+    const expected = { execution: { outcome: "success" }, markerVerdict: { discovered: true, verdict: "pass" } };
+    assert.equal(hasUsableSkillVersion(version), true);
+    assert.strictEqual(runSkillBehaviorWithVersionGate(version, () => {
+      calls++;
+      return expected;
+    }), expected);
+    assert.equal(calls, 1);
+  }
 });
 
 test("Codex skill probe runs from a non-Git fixture with an explicit bypass", () => {

@@ -196,12 +196,26 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     ? { discovered: true, verdict: "pass" } : inconclusive;
 }
 
-export function qualifySkillProbeVerdict(version, markerVerdict) {
+export function hasUsableSkillVersion(version) {
   const hasVersionOutput = [version?.stdout, version?.stderr].some((value) =>
     typeof value === "string" && value.trim().length > 0);
-  return version?.outcome === "success" && hasVersionOutput
+  return version?.outcome === "success" && hasVersionOutput;
+}
+
+export function qualifySkillProbeVerdict(version, markerVerdict) {
+  return hasUsableSkillVersion(version)
     ? markerVerdict
     : { discovered: false, verdict: "inconclusive" };
+}
+
+// A missing/failed version probe cannot yield a passing verdict. Avoid
+// launching a potentially costly authenticated behavior run in that case.
+export function runSkillBehaviorWithVersionGate(version, runBehavior) {
+  if (!hasUsableSkillVersion(version)) return {
+    execution: { outcome: "skipped", reason: "version_evidence_unavailable" },
+    markerVerdict: { discovered: false, verdict: "inconclusive" }
+  };
+  return runBehavior();
 }
 
 // Classify the original stdout before redaction/truncation; never persist it.
@@ -256,7 +270,8 @@ function main() {
         const fixture = createSkillFixture(temp, agent.id, scope);
         const { execution: version } = runSkillProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000, marker: fixture.marker });
         const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
-        const { execution, markerVerdict } = runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker, outputFormat: spec.outputFormat });
+        const { execution, markerVerdict } = runSkillBehaviorWithVersionGate(version, () =>
+          runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker, outputFormat: spec.outputFormat }));
         results.push({
           agent: agent.id,
           observedAt,
