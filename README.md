@@ -138,7 +138,7 @@ npm run probe:structured
 npm run probe:resume
 ```
 
-The inventory probe records which supported agent CLIs are installed, their versions, and their help output. Behavior fixtures are also shipped for nested instruction precedence, MCP stdio, skill discovery, structured output, and session resume. A shipped fixture is **not** evidence that every agent supports the behavior: matrix statuses change only after reproducible provider-backed results meet the evidence policy. Remaining nested-instruction and Agent Skills evidence work is tracked in issues #2 and #4.
+The inventory probe records which supported agent CLIs are installed, their versions, and their help output. Behavior fixtures are also shipped for nested instruction precedence, MCP stdio, skill discovery, structured output, and session resume. A shipped fixture is **not** proof that every agent supports the behavior: official documentation can establish a documented-capability matrix status, while claims of behavior-probe verification require reproducible provider-backed runs under the evidence policy. Remaining nested-instruction and Agent Skills evidence work is tracked in issues #2 and #4.
 
 Probe output is intentionally local by default. Do not publish logs that contain private paths or credentials.
 
