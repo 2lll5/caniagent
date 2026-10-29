@@ -8,7 +8,7 @@ import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput
 import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const NESTED_PROBE_SPECS = {
-  codex: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", prompt] },
+  codex: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["exec", "--ephemeral", "--skip-git-repo-check", prompt] },
   "claude-code": { file: "CLAUDE.md", versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
   "gemini-cli": { file: "GEMINI.md", versionArgs: ["--version"], args: (prompt) => ["-p", prompt] },
   opencode: { file: "AGENTS.md", versionArgs: ["--version"], args: (prompt) => ["run", prompt] }

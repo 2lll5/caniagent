@@ -5,6 +5,22 @@ import path from "node:path";
 import test from "node:test";
 import { NESTED_PROBE_SPECS, classifyNestedMarkers, createNestedInstructionFixture } from "../scripts/probe-nested.js";
 
+test("Codex nested probe explicitly permits its generated non-Git fixture", () => {
+  const prompt = "Return the applicable instruction markers";
+  assert.deepEqual(NESTED_PROBE_SPECS.codex.args(prompt), [
+    "exec", "--ephemeral", "--skip-git-repo-check", prompt
+  ]);
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-nested-codex-nongit-"));
+  try {
+    const fixture = createNestedInstructionFixture(temp, "codex");
+    assert.equal(fs.existsSync(path.join(fixture.workspace, ".git")), false);
+    assert.equal(fs.existsSync(path.join(fixture.nested, ".git")), false);
+    assert.equal(fs.existsSync(path.join(fixture.nested, "AGENTS.md")), true);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 for (const agentId of Object.keys(NESTED_PROBE_SPECS)) {
   test(`nested probe creates isolated root and nested instructions for ${agentId}`, () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "caniagent-probe-test-"));
