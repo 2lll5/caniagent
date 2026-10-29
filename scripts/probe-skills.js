@@ -196,6 +196,14 @@ export function classifySkillOutput(output, marker, executionOutcome = "success"
     ? { discovered: true, verdict: "pass" } : inconclusive;
 }
 
+export function qualifySkillProbeVerdict(version, markerVerdict) {
+  const hasVersionOutput = [version?.stdout, version?.stderr].some((value) =>
+    typeof value === "string" && value.trim().length > 0);
+  return version?.outcome === "success" && hasVersionOutput
+    ? markerVerdict
+    : { discovered: false, verdict: "inconclusive" };
+}
+
 // Classify the original stdout before redaction/truncation; never persist it.
 // The random fixture challenge is evidence-only: do not serialize it even if
 // an agent echoes SKILL.md in stdout, stderr, its command, or diagnostics.
@@ -246,7 +254,7 @@ function main() {
         fs.mkdirSync(home, { recursive: true });
         const env = isolatedProbeEnvironment(home);
         const fixture = createSkillFixture(temp, agent.id, scope);
-        const { execution: version } = runSkillProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000 });
+        const { execution: version } = runSkillProbe(agent.command, spec.versionArgs, { cwd: fixture.workspace, env, timeout: 8000, marker: fixture.marker });
         const prompt = `Run the ${fixture.skillName} skill for the CanIAgent skill discovery probe. Reply with only the result required by that skill; do not search the filesystem for skill files.`;
         const { execution, markerVerdict } = runSkillProbe(agent.command, spec.args(prompt), { cwd: fixture.workspace, env, marker: fixture.marker, outputFormat: spec.outputFormat });
         results.push({
@@ -257,7 +265,7 @@ function main() {
           fixtureSha256: fixture.fixtureSha256,
           version,
           execution,
-          ...markerVerdict
+          ...qualifySkillProbeVerdict(version, markerVerdict)
         });
       } finally {
         fs.rmSync(temp, { recursive: true, force: true });

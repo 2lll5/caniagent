@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture, runSkillProbe } from "../scripts/probe-skills.js";
+import { SKILL_PROBE_SPECS, captureSkillProbeResult, classifySkillOutput, createSkillFixture, qualifySkillProbeVerdict, runSkillProbe } from "../scripts/probe-skills.js";
 import { isolatedProbeEnvironment } from "../scripts/probe-env.js";
 
 test("skill probe adapters use documented project discovery conventions", () => {
@@ -19,6 +19,31 @@ test("skill probe adapters only encode documented isolated user discovery conven
   assert.deepEqual(SKILL_PROBE_SPECS["claude-code"].userPath, [".claude", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS["gemini-cli"].userPath, [".gemini", "skills"]);
   assert.deepEqual(SKILL_PROBE_SPECS.opencode.userPath, [".config", "opencode", "skills"]);
+});
+
+test("skill version evidence must be successful and nonempty before a passing marker verdict", () => {
+  const pass = { discovered: true, verdict: "pass" };
+  const inconclusive = { discovered: false, verdict: "inconclusive" };
+  const cases = [
+    [{ outcome: "success", stdout: "agent 1.0", stderr: "" }, pass],
+    [{ outcome: "success", stdout: "", stderr: "agent 1.0" }, pass],
+    [{ outcome: "success", stdout: "", stderr: "  " }, inconclusive],
+    [{ outcome: "nonzero_exit", stdout: "agent 1.0", stderr: "" }, inconclusive],
+    [{ outcome: "timeout", stdout: "agent 1.0", stderr: "" }, inconclusive],
+    [{ outcome: "spawn_error", stdout: "agent 1.0", stderr: "" }, inconclusive],
+    [undefined, inconclusive]
+  ];
+  for (const [version, expected] of cases) {
+    assert.deepEqual(qualifySkillProbeVerdict(version, pass), expected);
+  }
+  assert.deepEqual(qualifySkillProbeVerdict({ outcome: "success", stdout: "v1", stderr: "" }, inconclusive), inconclusive);
+  const marker = `CANIAGENT_SKILL_${"A".repeat(32)}`;
+  const { execution: version } = captureSkillProbeResult(
+    { status: 0, signal: null, stdout: `version ${marker}`, stderr: "" },
+    "fake-agent", ["--version"], marker
+  );
+  assert.equal(version.stdout.includes(marker), false);
+  assert.match(version.stdout, /<SKILL_MARKER>/);
 });
 
 test("Codex skill probe runs from a non-Git fixture with an explicit bypass", () => {

@@ -33,6 +33,8 @@ Each run redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Win
 
 This environment redirection reduces accidental reuse of normal agent configuration; it does **not** guarantee that an agent cannot read or write files outside the fixture. Other environment variables, including credentials, proxies, and `NODE_EXTRA_CA_CERTS`, remain inherited, while enterprise integrations that require `NODE_OPTIONS` may behave differently. Use an external sandbox if stronger isolation is required.
 
+A passing marker also requires a successful `--version` command with nonempty stdout or stderr. Failed, timed-out, or empty version evidence forces `inconclusive`; version output is marker-redacted before persistence. This is a version-evidence gate, not proof of CLI identity or skill activation.
+
 Each result records the agent version, OS/platform metadata, exact redacted command, exit status, redacted/truncated stdout and stderr, scope, exact discovery path, and `fixtureSha256` (SHA-256 of the JSON manifest `{ discoveryPath, readme, skill }`, using the fixture README and `SKILL.md` text). The digest allows a captured fixture to be integrity-checked without persisting the random challenge in the report; it does not by itself prove skill activation or permit reconstruction of a deleted fixture. Project and user scopes run independently so one successful discovery cannot satisfy another scope's evidence.
 
 The child-process capture has a bounded 8 MiB buffer rather than Node.js's default 1 MiB, so long but successful output can still be classified. Buffer overflow remains a subprocess error and therefore `inconclusive`; the full capture is never persisted.
