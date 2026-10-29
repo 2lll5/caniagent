@@ -42,8 +42,8 @@ export function createNestedInstructionFixture(baseDir, agentId) {
 export function classifyNestedMarkers(output, { rootMarker, nestedMarker }) {
   // Only an exact terminal line is provisional evidence. CLI diagnostics
   // and instruction-file echoes elsewhere in stdout must not count.
-  // Treat CR-only terminal progress as a line boundary, not whitespace between tokens.
-  const lines = output.trimEnd().split(/\r\n|\r|\n/);
+  // Treat CR-only progress and Unicode line separators as line boundaries, not whitespace between tokens.
+  const lines = output.trimEnd().split(/\r\n|[\r\n\v\f\u2028\u2029]/);
   const finalLine = lines.at(-1)?.trim() ?? "";
   const earlierOutput = lines.slice(0, -1).join("\n");
   const tokens = finalLine ? finalLine.split(/\s+/) : [];
