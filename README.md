@@ -62,7 +62,7 @@ The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`
 |---|:---:|:---:|:---:|:---:|
 | Project instructions | ✅ | ✅ | ✅ | ✅ |
 | Nested instruction scopes | ✅ | 🟡 | ✅ | ✅ |
-| Agent Skills (`SKILL.md`) | ✅ | ✅ | ❔ | ✅ |
+| Agent Skills (`SKILL.md`) | ✅ | ✅ | ✅ | ✅ |
 | MCP client | ✅ | ✅ | ✅ | ✅ |
 | Lifecycle hooks | ✅ | ✅ | ❔ | ✅ |
 | Non-interactive mode | ✅ | ✅ | ✅ | ✅ |
@@ -73,6 +73,8 @@ The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`
 **Legend:** ✅ yes · 🟡 partial · 🧪 experimental · ❔ unknown · ❌ no
 
 This table is a human-readable snapshot. `data/matrix.json` is the source of truth and contains per-cell notes, evidence URLs and checked dates.
+
+**Gemini CLI Agent Skills:** The ✅ reflects official documentation for Gemini CLI **v0.26.0 and later**, not a successful provider-backed discovery/activation probe or a guarantee for older installations. Check the installed CLI version, workspace trust, and skill-activation consent before relying on this capability.
 
 ## GitHub Action
 
@@ -138,7 +140,7 @@ npm run probe:structured
 npm run probe:resume
 ```
 
-The inventory probe records which supported agent CLIs are installed, their versions, and their help output. Behavior fixtures are also shipped for nested instruction precedence, MCP stdio, skill discovery, structured output, and session resume. A shipped fixture is **not** evidence that every agent supports the behavior: matrix statuses change only after reproducible provider-backed results meet the evidence policy. Remaining nested-instruction and Agent Skills evidence work is tracked in issues #2 and #4.
+The inventory probe records which supported agent CLIs are installed, their versions, and their help output. Behavior fixtures are also shipped for nested instruction precedence, MCP stdio, skill discovery, structured output, and session resume. A shipped fixture is **not** proof that every agent supports the behavior: official documentation can establish a documented-capability matrix status, while claims of behavior-probe verification require reproducible provider-backed runs under the evidence policy. Remaining nested-instruction and Agent Skills evidence work is tracked in issues #2 and #4.
 
 Probe output is intentionally local by default. Do not publish logs that contain private paths or credentials.
 
