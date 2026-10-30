@@ -74,6 +74,8 @@ The scanner recognizes compatibility-relevant agent surfaces such as `AGENTS.md`
 
 This table is a human-readable snapshot. `data/matrix.json` is the source of truth and contains per-cell notes, evidence URLs and checked dates.
 
+**Gemini CLI Agent Skills:** The ✅ reflects official documentation for Gemini CLI **v0.26.0 and later**, not a successful provider-backed discovery/activation probe or a guarantee for older installations. Check the installed CLI version, workspace trust, and skill-activation consent before relying on this capability.
+
 ## GitHub Action
 
 Use CanIAgent in a pull request to surface migration-attention findings as SARIF. Pin third-party actions to reviewed commit SHAs so an upstream tag or branch cannot silently change what your workflow executes:
