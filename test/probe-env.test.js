@@ -58,7 +58,7 @@ test("behavior probe handles an empty inherited environment", () => {
   assert.equal(env.CODEX_HOME, path.join(home, ".codex"));
 });
 
-for (const name of ["probe-nested", "probe-skills", "probe-structured-output", "probe-resume"]) {
+for (const name of ["probe-nested", "probe-skills", "probe-structured-output", "probe-resume", "probe-mcp"]) {
   test(`${name} uses shared isolated environment for subprocesses`, () => {
     const source = fs.readFileSync(new URL(`../scripts/${name}.js`, import.meta.url), "utf8");
     assert.match(source, /import \{ isolatedProbeEnvironment \} from "\.\/probe-env\.js";/);

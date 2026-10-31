@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
+import { isolatedProbeEnvironment } from "./probe-env.js";
 
 const SERVER_PATH = fileURLToPath(new URL("./mcp-echo-server.js", import.meta.url));
 export const MCP_MARKER = "CANIAGENT_MCP_ECHO_OK";
@@ -56,10 +57,6 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-function isolatedEnvironment(home) {
-  return { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_DATA_HOME: path.join(home, ".local", "share"), XDG_STATE_HOME: path.join(home, ".local", "state") };
-}
-
 function main() {
   const observedAt = new Date().toISOString();
   const results = [];
@@ -71,7 +68,7 @@ function main() {
       const home = path.join(temp, "home");
       fs.mkdirSync(home, { recursive: true });
       const fixture = createMcpFixture(temp, agent.id);
-      const env = isolatedEnvironment(home);
+      const env = isolatedProbeEnvironment(home);
       const version = run(agent.command, ["--version"], { cwd: fixture.workspace, env, timeout: 8000 });
       const prompt = `Call the caniagent_echo MCP tool exactly once with text ${MCP_MARKER}. Reply with only the tool result.`;
       const execution = version.outcome === "not_found"
