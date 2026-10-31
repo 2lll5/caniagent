@@ -11,7 +11,9 @@ For each documented adapter, the probe starts a fresh non-interactive conversati
 | Gemini CLI | `gemini -p ...` | `gemini -r latest ...` |
 | OpenCode | `opencode run ...` | `opencode run --continue ...` |
 
-Each agent gets its own temporary workspace and isolated HOME/XDG directories, so the probe cannot resume or modify the user's existing sessions. Temporary state is removed after the result is recorded. The environment is otherwise inherited so an operator may intentionally provide authentication through environment variables; no credentials are written by the probe.
+Each agent gets a temporary workspace and home. The probe redirects `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows `APPDATA`/`LOCALAPPDATA`, and XDG config/data/state/cache directories into that home; it uses the same temporary environment for both turns. Temporary fixture state is removed after the result is recorded. This reduces accidental reuse of normal agent sessions, but is **not** a filesystem sandbox or a guarantee that an agent cannot access external session/configuration paths.
+
+The probe deliberately removes inherited `NODE_OPTIONS` (including differently cased keys) so Node.js preload hooks cannot alter the observed CLI behavior. Agents that depend on such hooks may not run as they do in the operator's usual environment. Other variables, including authentication, proxy settings, and `NODE_EXTRA_CA_CERTS`, remain inherited; the probe fixture itself does not write credentials. Review artifacts for sensitive data before sharing them.
 
 Evidence records agent version, redacted commands, exit status, redacted/truncated stdout and stderr, and whether the resumed turn recalled the deterministic marker.
 

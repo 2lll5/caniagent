@@ -11,7 +11,9 @@ The probe invokes each agent's documented non-interactive structured-output mode
 | Gemini CLI | `gemini -p ... --output-format json` | JSON document |
 | OpenCode | `opencode run --format json` | JSON Lines events |
 
-Each run uses a temporary workspace and isolated HOME/XDG directories. Evidence records the agent version, exact redacted command, exit status, redacted/truncated stdout and stderr, expected format, parseability, and whether the deterministic marker was observed. Temporary directories are removed after each agent run.
+Each run uses a temporary workspace and the shared probe environment: `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, Windows `APPDATA`/`LOCALAPPDATA`, and XDG config/data/state/cache paths are redirected into the temporary home. Inherited `NODE_OPTIONS` (including case variants) is removed to prevent Node.js preload hooks from altering CLI behavior. Temporary fixtures are deleted after each run.
+
+This is configuration redirection, **not a filesystem or process sandbox**. An agent may still access external paths through other inherited settings or its own behavior. Authentication, proxy settings, and `NODE_EXTRA_CA_CERTS` remain inherited; enterprise integrations that require `NODE_OPTIONS` may behave differently. Agent execution may contact providers and consume quota. Evidence records the agent version, exact redacted command, exit status, redacted/truncated stdout and stderr, expected format, parseability, and whether the deterministic marker was observed.
 
 Verdicts are deliberately conservative:
 

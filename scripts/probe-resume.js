@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMatrix } from "../src/core.js";
 import { classifyProbeExecution, redactAndTruncateProbeOutput, redactProbeOutput } from "./probe-utils.js";
+import { isolatedProbeEnvironment } from "./probe-env.js";
 
 export const RESUME_SPECS = {
   codex: {
@@ -48,9 +49,6 @@ function run(command, args, { cwd, env, timeout = 60000 } = {}) {
   };
 }
 
-function isolatedEnvironment(home) {
-  return { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, ".config"), XDG_DATA_HOME: path.join(home, ".local", "share"), XDG_STATE_HOME: path.join(home, ".local", "state") };
-}
 
 function main() {
   const matrix = loadMatrix();
@@ -68,7 +66,7 @@ function main() {
       const workspace = path.join(temp, "workspace");
       fs.mkdirSync(home, { recursive: true });
       fs.mkdirSync(workspace, { recursive: true });
-      const env = isolatedEnvironment(home);
+      const env = isolatedProbeEnvironment(home);
       const marker = `CANIAGENT_RESUME_${agent.id.replaceAll("-", "_").toUpperCase()}`;
       const firstPrompt = `Remember this exact token for the next turn: ${marker}. Reply only with OK.`;
       const resumePrompt = "Reply only with the exact token I asked you to remember in the previous turn.";
